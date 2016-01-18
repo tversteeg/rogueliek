@@ -1,12 +1,16 @@
 NAME=rogueliek
+VERSION=0.1
 
 SOURCEDIR=src/$(NAME)
 
 BINDIR=bin
 
 RM=rm -f
-CFLAGS=-I$(INCDIR) -g -Wall -D_DEBUG -DCC_USE_ALL 
-LDLIBS=-L$(LIBDIR) -l$(LIBNAME) -lccore -lGL -lGLU -lGLEW -lm -lX11 -lXrandr -lXinerama -lXi -lpthread
+CFLAGS=-g -Wall -D_DEBUG -DCC_USE_ALL
+LDLIBS=-lccFont -lccore -lGL -lGLU -lGLEW -lm -lX11 -lXrandr -lXinerama -lXi -lpthread
+
+UCNAME=$(shell echo $(NAME) | tr a-z A-Z)
+CFLAGS+=-D$(UCNAME)_VERSION=$(VERSION) 
 
 SRCS=$(shell find $(SOURCEDIR) -name '*.c')
 OBJS=$(subst .c,.o,$(SRCS))
