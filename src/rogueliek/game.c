@@ -1,6 +1,3 @@
-#include <ccFont/ccFont.h>
-#include <ccore/file.h>
-
 #include <stdio.h> 
 #include <stdlib.h> 
 #include <string.h> 
@@ -16,11 +13,9 @@
 #define DEFAULT_HEIGHT 600
 
 static char assetdir[256] = "./";
-static ccfFont font;
 
 void runGame()
 {
-	createWindow("rogueliek - " TOSTRING(ROGUELIEK_VERSION), DEFAULT_WIDTH, DEFAULT_HEIGHT);
 	hideCursor();
 
 	while(true){
@@ -29,9 +24,6 @@ void runGame()
 		}
 		renderWindow(6);
 	}
-
-	showCursor();
-	destroyWindow();
 }
 
 void printVersion()
@@ -55,63 +47,6 @@ static struct option opts[] = {
 	{"assets", required_argument, 0, 'a'},
 	{NULL, 0, NULL, 0}
 };
-
-void loadFont(const char *file, char type)
-{
-	if(type != 'c'){
-		fprintf(stderr, "Non ccf binary font not implemented yet!\n");
-		exit(1);
-	}
-
-	unsigned len = ccFileInfoGet(file).size;
-
-	FILE *fp = fopen(file, "rb");
-	if(!fp){
-		fprintf(stderr, "Can not open file: %s\n", file);
-		exit(1);
-	}
-
-	unsigned char *bin = (unsigned char*)malloc(len);
-	fread(bin, 1, len, fp);
-
-	fclose(fp);
-	
-	if(ccfBinToFont(&font, bin, len) == -1){
-		fprintf(stderr, "Binary font failed: invalid version\n");
-		exit(1);
-	}
-
-	free(bin);
-}
-	
-// Loop through the asset directory to font a suitable font
-int pickFont()
-{
-	ccFileDir file;
-	if(ccFileDirFindFirst(&file, assetdir) != CC_SUCCESS){
-		fprintf(stderr, "Can not open asset directory \"%s\"\n", assetdir);
-		exit(1);
-	}
-	
-	while(ccFileDirFind(&file) == CC_SUCCESS){
-		if(file.isDirectory){
-			continue;
-		}
-
-		const char *ext = strrchr(file.name, '.');
-		if(!ext || ext == file.name){
-			continue;
-		} else if(strcmp(ext + 1, "ccf") == 0){
-			char fontfile[strlen(assetdir) + strlen(file.name) + 1];
-			strcpy(fontfile, assetdir);
-			strcpy(fontfile + strlen(assetdir), file.name);
-			loadFont(fontfile, 'c');
-			return 0;
-		}
-	}
-
-	return -1;
-}
 
 int main(int argc, char **argv)
 {
@@ -143,11 +78,15 @@ int main(int argc, char **argv)
 		assetdir[++len] = '\0';
 	}
 
-	if(pickFont() < 0){
+	if(pickFontFromDir(assetdir) < 0){
 		fprintf(stderr, "Could not find a font!\n");
 		return 1;
 	}
+	createWindow("rogueliek - " TOSTRING(ROGUELIEK_VERSION), DEFAULT_WIDTH, DEFAULT_HEIGHT);
 	runGame();
+
+	showCursor();
+	destroyWindow();
 
 	return 0;
 }

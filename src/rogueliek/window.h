@@ -8,5 +8,7 @@ void destroyWindow();
 bool updateWindow();
 void renderWindow(int ms);
 
+int pickFontFromDir(const char *dir);
+
 void hideCursor();
 void showCursor();
