@@ -23,7 +23,16 @@ void runGame()
 			break;
 		}
 
-		drawString(5, 0, "Rogueliek", 128, 128, 255);
+		drawString(getWidth() / 2 - strlen("Rogueliek") / 2 - 1, 0, "Rogueliek", 255, 128, 255);
+		int i;
+		for(i = 2; i < getWidth() - 2; i++){
+			drawChar(i, 2, '#', 255, 255, 255);
+			drawChar(i, getHeight() - 2, '#', 255, 255, 255);
+		}
+		for(i = 2; i < getHeight() - 1; i++){
+			drawChar(2, i, '#', 255, 255, 255);
+			drawChar(getWidth() - 2, i, '#', 255, 255, 255);
+		}
 		renderWindow(6);
 	}
 }

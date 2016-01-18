@@ -31,6 +31,8 @@ static bool updatescreen;
 
 static void renderLetters()
 {
+	memset(pixels, 0, wwidth * wheight * sizeof(pixel_t));
+
 	ccfFontConfiguration conf = {.x = 0, .width = 0, .wraptype = 0};
 
 	int y;
@@ -43,9 +45,9 @@ static void renderLetters()
 			if(l.r == 0 && l.g == 0 && l.b == 0){
 				continue;
 			}
-			conf.color[0] = l.r / 128.0;
-			conf.color[1] = l.g / 128.0;
-			conf.color[2] = l.b / 128.0;
+			conf.color[0] = l.r / 255.0;
+			conf.color[1] = l.g / 255.0;
+			conf.color[2] = l.b / 255.0;
 			ccfGLTexBlitChar(&font, l.c, &conf, wwidth, wheight, GL_RGB, GL_UNSIGNED_BYTE, (void*)pixels);
 		}
 	}
@@ -220,4 +222,14 @@ void drawString(int x, int y, const char *text, unsigned char r, unsigned char g
 	for(i = 0; i < len; i++){
 		drawChar(x + i, y, text[i], r, g, b);
 	}
+}
+
+int getWidth()
+{
+	return lwidth;
+}
+
+int getHeight()
+{
+	return lheight;
 }
