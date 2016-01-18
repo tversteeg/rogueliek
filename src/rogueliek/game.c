@@ -22,6 +22,8 @@ void runGame()
 		if(!updateWindow()){
 			break;
 		}
+
+		drawString(5, 0, "Rogueliek", 128, 128, 255);
 		renderWindow(6);
 	}
 }
