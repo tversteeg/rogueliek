@@ -21,10 +21,11 @@
 #define DEFAULT_HEIGHT 600
 
 static char assetdir[256] = "./";
+static lua_State *lua;
 
 void loadLua()
 {
-	lua_State *lua = luaL_newstate();
+	lua = luaL_newstate();
 	luaL_openlibs(lua);
 
 	static const struct luaL_Reg maplib[] = {
@@ -50,12 +51,10 @@ void loadLua()
 		int error = luaL_loadbuffer(lua, buf, strlen(buf), "line") || lua_pcall(lua, 0, 0, 0);
 
 		if(error){
-			fprintf(stderr, "%s\n", lua_tostring(lua, -1));
-			lua_pop(lua, 1);
+			fprintf(stderr, "Lua error: %s\n", lua_tostring(lua, -1));
+			exit(1);
 		}
 	}
-
-	lua_close(lua);
 
 	fclose(fp);
 }
@@ -68,6 +67,9 @@ void runGame()
 		if(!updateWindow()){
 			break;
 		}
+
+		lua_getglobal(lua, "update");
+		lua_call(lua, 0, 0);
 
 		drawString(getWidth() / 2 - strlen("Rogueliek") / 2 - 1, 0, "Rogueliek", 255, 128, 255);
 		int i;
@@ -145,6 +147,8 @@ int main(int argc, char **argv)
 
 	showCursor();
 	destroyWindow();
+
+	lua_close(lua);
 
 	return 0;
 }
