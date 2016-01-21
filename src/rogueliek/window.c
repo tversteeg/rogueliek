@@ -51,6 +51,20 @@ static int l_drawString(lua_State *lua)
 	return 0;
 }
 
+static int l_drawChar(lua_State *lua)
+{
+	int x = luaL_checkinteger(lua, 1);
+	int y = luaL_checkinteger(lua, 2);
+	char c = luaL_checkinteger(lua, 3);
+	unsigned char r = luaL_checkinteger(lua, 4);
+	unsigned char g = luaL_checkinteger(lua, 5);
+	unsigned char b = luaL_checkinteger(lua, 6);
+	
+	drawChar(x, y, c, r, g, b);
+
+	return 0;
+}
+
 static int l_clear(lua_State *lua)
 {
 	clear();
@@ -99,6 +113,7 @@ static void renderLetters()
 void windowRegisterLua(lua_State *lua)
 {
 	lua_register(lua, "drawstring", l_drawString);
+	lua_register(lua, "drawchar", l_drawChar);
 	lua_register(lua, "clear", l_clear);
 	lua_register(lua, "getwidth", l_getWidth);
 	lua_register(lua, "getheight", l_getHeight);
