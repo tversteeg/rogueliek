@@ -6,10 +6,6 @@
 
 #include <ccore/file.h>
 
-#include <lua5.3/lua.h>
-#include <lua5.3/lauxlib.h>
-#include <lua5.3/lualib.h>
-
 #include "window.h"
 #include "level.h"
 #include "utils.h"
@@ -28,11 +24,8 @@ void loadLua()
 	lua = luaL_newstate();
 	luaL_openlibs(lua);
 
-	static const struct luaL_Reg maplib[] = {
-		{"generate", l_generateMap},
-		{NULL, NULL}};
-
-	luaL_newlib(lua, maplib);
+	levelRegisterLua(lua);
+	windowRegisterLua(lua);
 
 	char *file = findFileFromExtension(assetdir, "lua");
 	if(file == NULL){
@@ -40,47 +33,26 @@ void loadLua()
 		exit(1);
 	}
 
-	FILE *fp = fopen(file, "r");
-	if(!fp){
-		fprintf(stderr, "Can not open file: %s\n", file);
+	if(luaL_loadfile(lua, file) || lua_pcall(lua, 0, 0, 0)){
+		fprintf(stderr, "Lua error: %s\n", lua_tostring(lua, -1));
 		exit(1);
 	}
-
-	char buf[256];
-	while(fgets(buf, sizeof(buf), fp) != NULL){
-		int error = luaL_loadbuffer(lua, buf, strlen(buf), "line") || lua_pcall(lua, 0, 0, 0);
-
-		if(error){
-			fprintf(stderr, "Lua error: %s\n", lua_tostring(lua, -1));
-			exit(1);
-		}
-	}
-
-	fclose(fp);
 }
 
 void runGame()
 {
 	hideCursor();
 
+	lua_getglobal(lua, "setup");
+	lua_call(lua, 0, 0);
+
 	while(true){
-		if(!updateWindow()){
+		if(!updateWindow(lua)){
 			break;
 		}
 
 		lua_getglobal(lua, "update");
 		lua_call(lua, 0, 0);
-
-		drawString(getWidth() / 2 - strlen("Rogueliek") / 2 - 1, 0, "Rogueliek", 255, 128, 255);
-		int i;
-		for(i = 2; i < getWidth() - 2; i++){
-			drawChar(i, 2, '#', 255, 255, 255);
-			drawChar(i, getHeight() - 2, '#', 255, 255, 255);
-		}
-		for(i = 2; i < getHeight() - 1; i++){
-			drawChar(2, i, '#', 255, 255, 255);
-			drawChar(getWidth() - 2, i, '#', 255, 255, 255);
-		}
 		renderWindow(6);
 	}
 }

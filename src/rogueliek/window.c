@@ -7,6 +7,10 @@
 #include <ccore/time.h>
 #include <ccore/file.h>
 
+#include <lua5.3/lua.h>
+#include <lua5.3/lauxlib.h>
+#include <lua5.3/lualib.h>
+
 #include "utils.h"
 
 #ifdef WINDOWS
@@ -31,6 +35,20 @@ static pixel_t *pixels;
 static int wwidth, wheight, lwidth, lheight;
 static bool updatescreen;
 
+static int l_drawString(lua_State *lua)
+{
+	int x = luaL_checkinteger(lua, 1);
+	int y = luaL_checkinteger(lua, 2);
+	const char *text = luaL_checkstring(lua, 3);
+	unsigned char r = luaL_checkinteger(lua, 4);
+	unsigned char g = luaL_checkinteger(lua, 5);
+	unsigned char b = luaL_checkinteger(lua, 6);
+	
+	drawString(x, y, text, r, g, b);
+
+	return 0;
+}
+
 static void renderLetters()
 {
 	memset(pixels, 0, wwidth * wheight * sizeof(pixel_t));
@@ -53,6 +71,11 @@ static void renderLetters()
 			ccfGLTexBlitChar(&font, l.c, &conf, wwidth, wheight, GL_RGB, GL_UNSIGNED_BYTE, (void*)pixels);
 		}
 	}
+}
+
+void windowRegisterLua(lua_State *lua)
+{
+	lua_register(lua, "drawstring", l_drawString);
 }
 
 void createWindow(const char *title, int width, int height)
@@ -91,7 +114,7 @@ void destroyWindow()
 	free(letters);
 }
 
-bool updateWindow()
+bool updateWindow(lua_State *lua)
 {
 	while(ccWindowEventPoll()){
 		ccEvent event = ccWindowEventGet();
@@ -103,6 +126,9 @@ bool updateWindow()
 				if(event.keyCode == CC_KEY_ESCAPE){
 					return false;
 				}
+				lua_getglobal(lua, "keydown");
+				lua_pushinteger(lua, event.keyCode);
+				lua_call(lua, 1, 0);
 				break;
 			default: break;
 		}

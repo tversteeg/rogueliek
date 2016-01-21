@@ -4,5 +4,6 @@
 #include <lua5.3/lauxlib.h>
 #include <lua5.3/lualib.h>
 
+void levelRegisterLua(lua_State *lua);
+
 void generateMap(int width, int height, int seed);
-int l_generateMap(lua_State *lua);
