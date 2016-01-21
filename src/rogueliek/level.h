@@ -7,3 +7,5 @@
 void levelRegisterLua(lua_State *lua);
 
 void generateMap(int width, int height, int seed);
+
+void renderMap(int x, int y, int width, int height);

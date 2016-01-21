@@ -22,11 +22,12 @@ function keydown(keycode)
 end
 
 function setup()
-	print("Setup")
+	generatemap(getwidth(), getheight(), 0)
 end
 
 function update()
 	if state == "Menu" then
+		rendermap(2, 2, getwidth() - 4, getheight() - 3)
 		drawstring(getwidth() / 2 - string.len("Rogueliek!") / 2, 3, "Rogueliek!", 255, 128, 128)
 		for i = 1, 2 do
 			local color = {127, 127, 127}
@@ -44,6 +45,5 @@ function update()
 			drawchar(1, i, string.byte("#"), 64, 64, 64)
 			drawchar(getwidth() - 2, i, string.byte("#"), 64, 64, 64)
 		end
-	else
 	end
 end
