@@ -1,5 +1,7 @@
 #include "level.h"
 
+#include <ccNoise/ccNoise.h>
+
 #include <stdlib.h>
 #include <time.h>
 
@@ -24,25 +26,37 @@ void levelRegisterLua(lua_State *lua)
 
 void generateMap(int width, int height, int seed)
 {
-	mwidth = width;
-	mheight = height;
-
-	map = (char*)malloc(mwidth * mheight);
-
 	time_t *tseed = (time_t*)NULL;
 	if(seed != 0){
 		*tseed = (time_t)seed;
 	}
 	srand(time(tseed));
 
+	ccnNoise noise;
+	ccnNoiseAllocate2D(noise, width, height);
+
+	ccnNoiseConfiguration config = {
+		.seed = rand(),
+		.storeMethod = CCN_STORE_SET,
+		.x = 0, .y = 0,
+		.tileConfiguration = {
+			.tileMethod = CCN_TILE_CARTESIAN,
+			.xPeriod = 2, .yPeriod = 2
+		},
+		.range.low = 0, .range.high = 1
+	};
+
+	ccnGenerateOpenSimplex2D(&noise, &config, 32);
+
+	map = (char*)malloc(mwidth * mheight);	
+	
 	unsigned int i;
 	for(i = 0; i < width * height; i++){
-		char tile = '.';
-		if(i % width == 0 || i % width == width - 1 || i < width || i > width * height - width){
-			tile = '#';
-		}else if(rand() % 3 < 1){
-			tile = '#';
-		}
-		map[i] = tile;
+		map[i] = noise.values[i] * 255;
 	}
+
+	ccnNoiseFree(noise);
+
+	mwidth = width;
+	mheight = height;
 }

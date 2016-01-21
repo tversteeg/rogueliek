@@ -7,7 +7,7 @@ BINDIR=bin
 
 RM=rm -f
 CFLAGS=-g -Wall -D_DEBUG -DCC_USE_ALL
-LDLIBS=-lccFont -lccore -lGL -lGLU -lGLEW -lm -lX11 -lXrandr -lXinerama -lXi -lpthread -llua5.3
+LDLIBS=-lccFont -lccNoise -lccore -lGL -lGLU -lGLEW -lm -lX11 -lXrandr -lXinerama -lXi -lpthread -llua5.3
 
 UCNAME=$(shell echo $(NAME) | tr a-z A-Z)
 CFLAGS+=-D$(UCNAME)_VERSION=$(VERSION) 
