@@ -1,3 +1,5 @@
+#include "window.h"
+
 #include <stdbool.h>
 
 #include <ccFont/ccFont.h>
@@ -49,6 +51,27 @@ static int l_drawString(lua_State *lua)
 	return 0;
 }
 
+static int l_clear(lua_State *lua)
+{
+	clear();
+
+	return 0;
+}
+
+static int l_getWidth(lua_State *lua)
+{
+	lua_pushinteger(lua, getWidth());
+	
+	return 1;
+}
+
+static int l_getHeight(lua_State *lua)
+{
+	lua_pushinteger(lua, getHeight());
+	
+	return 1;
+}
+
 static void renderLetters()
 {
 	memset(pixels, 0, wwidth * wheight * sizeof(pixel_t));
@@ -76,6 +99,9 @@ static void renderLetters()
 void windowRegisterLua(lua_State *lua)
 {
 	lua_register(lua, "drawstring", l_drawString);
+	lua_register(lua, "clear", l_clear);
+	lua_register(lua, "getwidth", l_getWidth);
+	lua_register(lua, "getheight", l_getHeight);
 }
 
 void createWindow(const char *title, int width, int height)
@@ -225,6 +251,13 @@ void drawString(int x, int y, const char *text, unsigned char r, unsigned char g
 	for(i = 0; i < len; i++){
 		drawChar(x + i, y, text[i], r, g, b);
 	}
+}
+
+void clear()
+{
+	memset(letters, 0, lwidth * lheight * sizeof(rchar_t));
+	
+	updatescreen = true;
 }
 
 int getWidth()
