@@ -2,6 +2,8 @@ state = "Menu"
 menu_items = {"New Game", "Settings"}
 menu_selected = 1
 
+map_size = 256
+
 player = {
 	x = 40, y = 40
 }
@@ -35,7 +37,7 @@ function keydown(keycode)
 end
 
 function setup()
-	generatemap(getwidth(), getheight(), 0)
+	generatemap(getwidth(), getheight(), 0, 4, 100)
 end
 
 function update()
@@ -53,9 +55,17 @@ function update()
 		drawstring(width / 2 - 7, height / 2, "Generating map", 255, 255, 255)
 		state = "Generate Map"
 	elseif state == "Generate Map" then
-		generatemap(4096, 4096, 0)
+		generatemap(map_size, map_size, 0, 32, 50)
 		state = "Game"
 	elseif state == "Game" then
+		for i = 1, width - 15 do
+			drawchar(i, 0, string.byte("="), 64, 64, 64)
+			drawchar(i, height - 2, string.byte("="), 64, 64, 64)
+		end
+		for i = 0, height - 2 do
+			drawchar(0, i, string.byte("#"), 64, 64, 64)
+			drawchar(width - 15, i, string.byte("#"), 64, 64, 64)
+		end
 		rendermap(1, 1, width - 16, height - 3, player.x - width / 2, player.y - height / 2)
 		drawchar((width - 14) / 2, (height - 2) / 2, string.byte("@"), 255, 255, 255)
 	elseif state == "Menu" then

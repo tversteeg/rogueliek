@@ -6,6 +6,6 @@
 
 void levelRegisterLua(lua_State *lua);
 
-void generateMap(int width, int height, int seed);
+void generateMap(int width, int height, int seed, int scale, int erosionpasses);
 
 void renderMap(int x, int y, int width, int height, int mapx, int mapy);
