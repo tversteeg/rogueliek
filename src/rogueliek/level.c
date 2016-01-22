@@ -8,7 +8,7 @@
 #include "window.h"
 
 int mwidth, mheight;
-char *map;
+char *map = NULL;
 
 static int l_generateMap(lua_State *lua)
 {
@@ -27,8 +27,10 @@ static int l_renderMap(lua_State *lua)
 	int y = luaL_checkinteger(lua, 2);
 	int width = luaL_checkinteger(lua, 3);
 	int height = luaL_checkinteger(lua, 4);
+	int mapx = luaL_checkinteger(lua, 5);
+	int mapy = luaL_checkinteger(lua, 6);
 
-	renderMap(x, y, width, height);
+	renderMap(x, y, width, height, mapx, mapy);
 
 	return 0;
 }
@@ -41,6 +43,9 @@ void levelRegisterLua(lua_State *lua)
 
 void generateMap(int width, int height, int seed)
 {
+	if(map != NULL){
+		free(map);
+	}
 	time_t *tseed = (time_t*)NULL;
 	if(seed != 0){
 		*tseed = (time_t)seed;
@@ -76,13 +81,27 @@ void generateMap(int width, int height, int seed)
 	mheight = height;
 }
 
-void renderMap(int x, int y, int width, int height)
+void renderMap(int x, int y, int width, int height, int mapx, int mapy)
 {
+	if(width > mwidth - mapx){
+		width = mwidth - mapx;
+	}
+	if(height > mheight - mapy){
+		height = mheight - mapy;
+	}
+	int startx = 0;
+	if(mapx < 0){
+		startx = -mapx;
+	}
+	int starty = 0;
+	if(mapy < 0){
+		starty = -mapy;
+	}
 	int i;
-	for(i = 0; i < width; i++){
+	for(i = startx; i < width; i++){
 		int j;
-		for(j = 0; j < height; j++){
-			unsigned char v = map[i + j * mwidth];
+		for(j = starty; j < height; j++){
+			unsigned char v = map[mapx + i + (mapy + j) * mwidth];
 			if(v < 20){
 				drawChar(i + x, j + y, '^', 128, 128, 128);
 			}else if(v < 128){

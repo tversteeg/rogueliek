@@ -102,9 +102,9 @@ static void renderLetters()
 			if(l.r == 0 && l.g == 0 && l.b == 0){
 				continue;
 			}
-			conf.color[0] = l.r / 255.0;
-			conf.color[1] = l.g / 255.0;
-			conf.color[2] = l.b / 255.0;
+			conf.color[0] = (float)l.r / 255.0;
+			conf.color[1] = (float)l.g / 255.0;
+			conf.color[2] = (float)l.b / 255.0;
 			ccfGLTexBlitChar(&font, l.c, &conf, wwidth, wheight, GL_RGB, GL_UNSIGNED_BYTE, (void*)pixels);
 		}
 	}

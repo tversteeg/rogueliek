@@ -2,6 +2,10 @@ state = "Menu"
 menu_items = {"New Game", "Settings"}
 menu_selected = 1
 
+player = {
+	x = 40, y = 40
+}
+
 function keydown(keycode)
 	if state == "Menu" then
 		if keycode == 65364 then
@@ -14,7 +18,16 @@ function keydown(keycode)
 			end
 		elseif keycode == 65293 then
 			state = menu_items[menu_selected]
-			clear()
+		end
+	elseif state == "Game" then
+		if keycode == 65364 then
+			player.y = player.y + 1
+		elseif keycode == 65362 then
+			player.y = player.y - 1
+		elseif keycode == 65363 then
+			player.x = player.x + 1
+		elseif keycode == 65361 then
+			player.x = player.x - 1
 		end
 	end
 
@@ -26,24 +39,43 @@ function setup()
 end
 
 function update()
-	if state == "Menu" then
-		rendermap(2, 2, getwidth() - 4, getheight() - 3)
-		drawstring(getwidth() / 2 - string.len("Rogueliek!") / 2, 3, "Rogueliek!", 255, 128, 128)
+	local width = getwidth()
+	if math.fmod(width, 2) == 1 then
+		width = width - 1
+	end
+	local height = getheight()
+	if math.fmod(height, 2) == 1 then
+		height = height - 1
+	end
+
+	clear()
+	if state == "New Game" then
+		drawstring(width / 2 - 7, height / 2, "Generating map", 255, 255, 255)
+		state = "Generate Map"
+	elseif state == "Generate Map" then
+		generatemap(4096, 4096, 0)
+		state = "Game"
+	elseif state == "Game" then
+		rendermap(1, 1, width - 16, height - 3, player.x - width / 2, player.y - height / 2)
+		drawchar((width - 14) / 2, (height - 2) / 2, string.byte("@"), 255, 255, 255)
+	elseif state == "Menu" then
+		rendermap(2, 2, width - 4, height - 3, 0, 0)
+		drawstring(width / 2 - string.len("Grottwesens!") / 2, 3, "Grottwesens!", 255, 128, 128)
 		for i = 1, 2 do
 			local color = {127, 127, 127}
 			if menu_selected == i then
 				color = {255, 255, 255}
 			end
-			drawstring(getwidth() / 2 - string.len(menu_items[i]) / 2, 8 + i * 4, menu_items[i], color[1], color[2], color[3])
+			drawstring(width / 2 - string.len(menu_items[i]) / 2, 8 + i * 4, menu_items[i], color[1], color[2], color[3])
 		end
 
-		for i = 1, getwidth() - 2 do
-			drawchar(i, 1, string.byte("#"), 64, 64, 64)
-			drawchar(i, getheight() - 1, string.byte("#"), 64, 64, 64)
+		for i = 1, width - 2 do
+			drawchar(i, 1, string.byte("="), 64, 64, 64)
+			drawchar(i, height - 1, string.byte("="), 64, 64, 64)
 		end
-		for i = 1, getheight() - 2 do
+		for i = 1, height - 1 do
 			drawchar(1, i, string.byte("#"), 64, 64, 64)
-			drawchar(getwidth() - 2, i, string.byte("#"), 64, 64, 64)
+			drawchar(width - 2, i, string.byte("#"), 64, 64, 64)
 		end
 	end
 end
