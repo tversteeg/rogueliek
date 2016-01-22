@@ -9,8 +9,8 @@
 
 #define EROSION_DELTA_MAX 0.2
 #define EROSION_TRANSFER_SEDIMENT_RATIO 0.1
-#define EROSION_TRANSFER_WATER_RATIO 0.1
-#define EROSION_WATER_MIN 0.0
+#define EROSION_TRANSFER_WATER_RATIO 0.2
+#define EROSION_WATER_MIN 0.2
 
 int mwidth, mheight;
 char *map = NULL;
@@ -84,14 +84,15 @@ static void erosion(ccnNoise *height, ccnNoise *water)
 				continue;
 			}
 
-			sediment[indexlowest] += delta;
-			sediment[index] -= delta;
+			float waterdelta = water->values[i] * delta * EROSION_TRANSFER_WATER_RATIO;
+			sediment[indexlowest] += waterdelta;
+			sediment[index] -= waterdelta;
 		}
 	}
 
 	for(i = 0; i < height->width * height->height; i++){
-		height->values[i] += sediment[i] * EROSION_TRANSFER_SEDIMENT_RATIO;
-		water->values[i] += sediment[i] * EROSION_TRANSFER_WATER_RATIO;
+		height->values[i] -= sediment[i] * EROSION_TRANSFER_SEDIMENT_RATIO * water->values[i];
+		water->values[i] += sediment[i];
 	}
 
 	free(sediment);
@@ -132,13 +133,14 @@ void generateMap(int width, int height, int seed, int scale, int erosionpasses)
 	ccnGenerateOpenSimplex2D(&heightmap, &config, scale);
 
 	config.seed = rand();
-	config.range.high = 1.0;
+	config.range.low = 0.4;
+	config.range.high = 0.5;
 	ccnGenerateOpenSimplex2D(&water, &config, 1);
 
 	config.seed = rand();
 	config.storeMethod = CCN_STORE_ADD;
 	config.range.low = 0.0;
-	config.range.high = 0.1;
+	config.range.high = 0.05;
 	ccnGenerateOpenSimplex2D(&heightmap, &config, 1);
 
 	unsigned int i;
@@ -149,7 +151,11 @@ void generateMap(int width, int height, int seed, int scale, int erosionpasses)
 	map = (char*)malloc(width * height);	
 
 	for(i = 0; i < width * height; i++){
-		map[i] = heightmap.values[i] * 255;
+		if(water.values[i] > 0.95){
+			map[i] = 255;
+		}else{
+			map[i] = heightmap.values[i] * 254;
+		}
 	}
 
 	ccnNoiseFree(water);
@@ -183,13 +189,20 @@ void renderMap(int x, int y, int width, int height, int mapx, int mapy)
 			/*
 				 if(v < 20){
 				 drawChar(i + x, j + y, '^', 128, 128, 128);
-				 }else if(v < 128){
-				 drawChar(i + x, j + y, '#', 0, 128 - v, 0);
-				 }else{
-				 drawChar(i + x, j + y, '%', v >> 3, v >> 3, v >> 5);
 				 }
 				 */
-			drawChar(i + x, j + y, '%', v, v, v);
+
+			if(v == 255){
+				drawChar(i + x, j + y, '~', 128, 128, 255);
+			}else if(v > 215){
+				drawChar(i + x, j + y, '^', 255, 255, 255);
+			}else if(v > 180){
+				drawChar(i + x, j + y, '%', v >> 1, v >> 1, v >> 2);
+			}else if(v > 80){
+				drawChar(i + x, j + y, '#', 0, (v >> 1) + 90, 0);
+			}else{
+				drawChar(i + x, j + y, '=', 237 / 1.5, 201 / 1.5, 175 / 1.5);
+			}
 		}
 	}
 }
