@@ -62,7 +62,7 @@ static void erosion(ccnNoise *height, ccnNoise *water)
 		int j;
 		for(j = 1; j < height->width - 1; j++){
 			int index = j + i * height->width;
-			// Ignore if there is no water on this point
+			// Ignore if there is not enough water on this point
 			if(water->values[index] < EROSION_WATER_MIN){
 				continue;
 			}
@@ -84,14 +84,14 @@ static void erosion(ccnNoise *height, ccnNoise *water)
 				continue;
 			}
 
-			float waterdelta = water->values[i] * delta * EROSION_TRANSFER_WATER_RATIO;
+			float waterdelta = water->values[i] * EROSION_TRANSFER_WATER_RATIO;
 			sediment[indexlowest] += waterdelta;
 			sediment[index] -= waterdelta;
 		}
 	}
 
-	for(i = 0; i < height->width * height->height; i++){
-		height->values[i] -= sediment[i] * EROSION_TRANSFER_SEDIMENT_RATIO * water->values[i];
+	for(i = 0; i < size; i++){
+		height->values[i] -= sediment[i] * EROSION_TRANSFER_SEDIMENT_RATIO;
 		water->values[i] += sediment[i];
 	}
 
@@ -127,21 +127,19 @@ void generateMap(int width, int height, int seed, int scale, int erosionpasses)
 			.tileMethod = CCN_TILE_CARTESIAN,
 			.xPeriod = 1, .yPeriod = 1
 		},
-		.range.low = 0, .range.high = 0.9
+		.range.low = 0, .range.high = 1.0 / (float)scale
 	};
 
-	ccnGenerateOpenSimplex2D(&heightmap, &config, scale);
+	ccnGenerateValueNoise2D(&heightmap, &config, 1, CCN_INTERP_CUBIC);
+	config.storeMethod = CCN_STORE_ADD;
+	for(unsigned i = 1; i < scale; i++){
+		ccnGenerateValueNoise2D(&heightmap, &config, i, CCN_INTERP_CUBIC);
+	}
 
 	config.seed = rand();
 	config.range.low = 0.4;
 	config.range.high = 0.5;
 	ccnGenerateOpenSimplex2D(&water, &config, 1);
-
-	config.seed = rand();
-	config.storeMethod = CCN_STORE_ADD;
-	config.range.low = 0.0;
-	config.range.high = 0.05;
-	ccnGenerateOpenSimplex2D(&heightmap, &config, 1);
 
 	unsigned int i;
 	for(i = 0; i < erosionpasses; i++){
@@ -150,7 +148,7 @@ void generateMap(int width, int height, int seed, int scale, int erosionpasses)
 
 	map = (char*)malloc(width * height);	
 
-	for(i = 0; i < width * height; i++){
+	for(unsigned i = 0; i < width * height; i++){
 		if(water.values[i] > 0.95){
 			map[i] = 255;
 		}else{
@@ -186,23 +184,18 @@ void renderMap(int x, int y, int width, int height, int mapx, int mapy)
 		int j;
 		for(j = starty; j < height; j++){
 			unsigned char v = map[mapx + i + (mapy + j) * mwidth];
-			/*
-				 if(v < 20){
-				 drawChar(i + x, j + y, '^', 128, 128, 128);
-				 }
-				 */
-
 			if(v == 255){
 				drawChar(i + x, j + y, '~', 128, 128, 255);
 			}else if(v > 215){
 				drawChar(i + x, j + y, '^', 255, 255, 255);
-			}else if(v > 180){
+			}else if(v > 160){
 				drawChar(i + x, j + y, '%', v >> 1, v >> 1, v >> 2);
 			}else if(v > 80){
 				drawChar(i + x, j + y, '#', 0, (v >> 1) + 90, 0);
 			}else{
 				drawChar(i + x, j + y, '=', 237 / 1.5, 201 / 1.5, 175 / 1.5);
 			}
+			drawChar(i + x, j + y, '#', v, v, v);
 		}
 	}
 }
