@@ -37,7 +37,7 @@ function keydown(keycode)
 end
 
 function setup()
-	generatemap(getwidth(), getheight(), 0, 4, 50)
+	generatemap(getwidth(), getheight(), 0, 10, 50)
 end
 
 function update()
@@ -55,7 +55,7 @@ function update()
 		drawstring(width / 2 - 7, height / 2, "Generating map", 255, 255, 255)
 		state = "Generate Map"
 	elseif state == "Generate Map" then
-		generatemap(map_size, map_size, 0, 6, 1000)
+		generatemap(map_size, map_size, 0, 9, 1000)
 		state = "Game"
 	elseif state == "Game" then
 		for i = 1, width - 15 do

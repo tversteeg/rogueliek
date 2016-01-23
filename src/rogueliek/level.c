@@ -8,13 +8,13 @@
 
 #include "window.h"
 
-#define NOISE_PERSISTANCE 0.5
-#define NOISE_FREQUENCY 1
+#define NOISE_PERSISTANCE 0.2
+#define NOISE_FREQUENCY 4
 
-#define EROSION_DELTA_MAX 0.2
-#define EROSION_TRANSFER_SEDIMENT_RATIO 0.1
-#define EROSION_TRANSFER_WATER_RATIO 0.2
-#define EROSION_WATER_MIN 0.2
+#define EROSION_DELTA_MIN 0.1
+#define EROSION_TRANSFER_SEDIMENT_RATIO 0.5
+#define EROSION_TRANSFER_WATER_RATIO 0.1
+#define EROSION_WATER_MIN 0.1
 
 int mwidth, mheight;
 char *map = NULL;
@@ -46,17 +46,17 @@ static int l_renderMap(lua_State *lua)
 	return 0;
 }
 
-static inline void setLowestDelta(ccnNoise *height, float *dmax, int index, int *inew, int x2, int y2)
+static inline void setLowestDelta(ccnNoise *height, ccnNoise *water, float *dmax, int index, int *inew, int x2, int y2)
 {
 	int index2 = x2 + height->width * y2;
-	float delta = height->values[index] - height->values[index2];
+	float delta = (height->values[index] + water->values[index]) - (height->values[index2] + water->values[index2]);
 	if(delta > *dmax){
 		*dmax = delta;
 		*inew = index2;
 	}
 }
 
-static void erosion(ccnNoise *height, ccnNoise *water)
+static void erosion(ccnNoise *height, ccnNoise *water, ccnNoise *hardness)
 {
 	int size = height->width * height->height;
 	float *sediment = (float*)calloc(size, sizeof(float));
@@ -74,28 +74,28 @@ static void erosion(ccnNoise *height, ccnNoise *water)
 			// Find the biggest delta
 			float delta = 0;
 			int indexlowest = -1;
-			setLowestDelta(height, &delta, index, &indexlowest, j - 1, i);
-			setLowestDelta(height, &delta, index, &indexlowest, j + 1, i);
-			setLowestDelta(height, &delta, index, &indexlowest, j, i - 1);
-			setLowestDelta(height, &delta, index, &indexlowest, j, i + 1);
-			setLowestDelta(height, &delta, index, &indexlowest, j - 1, i - 1);
-			setLowestDelta(height, &delta, index, &indexlowest, j - 1, i + 1);
-			setLowestDelta(height, &delta, index, &indexlowest, j + 1, i - 1);
-			setLowestDelta(height, &delta, index, &indexlowest, j + 1, i + 1);
+			setLowestDelta(height, water, &delta, index, &indexlowest, j - 1, i);
+			setLowestDelta(height, water, &delta, index, &indexlowest, j + 1, i);
+			setLowestDelta(height, water, &delta, index, &indexlowest, j, i - 1);
+			setLowestDelta(height, water, &delta, index, &indexlowest, j, i + 1);
+			setLowestDelta(height, water, &delta, index, &indexlowest, j - 1, i - 1);
+			setLowestDelta(height, water, &delta, index, &indexlowest, j - 1, i + 1);
+			setLowestDelta(height, water, &delta, index, &indexlowest, j + 1, i - 1);
+			setLowestDelta(height, water, &delta, index, &indexlowest, j + 1, i + 1);
 
 			// Ignore this point if all the surrounding points are higher
-			if(indexlowest == -1 || delta > EROSION_DELTA_MAX){
+			if(indexlowest == -1 || delta < EROSION_DELTA_MIN){
 				continue;
 			}
 
-			float waterdelta = water->values[i] * EROSION_TRANSFER_WATER_RATIO;
+			float waterdelta = water->values[index] * EROSION_TRANSFER_WATER_RATIO;
 			sediment[indexlowest] += waterdelta;
 			sediment[index] -= waterdelta;
 		}
 	}
 
 	for(i = 0; i < size; i++){
-		height->values[i] -= sediment[i] * EROSION_TRANSFER_SEDIMENT_RATIO;
+		height->values[i] += sediment[i] * EROSION_TRANSFER_SEDIMENT_RATIO;
 		water->values[i] += sediment[i];
 	}
 
@@ -119,9 +119,10 @@ void generateMap(int width, int height, int seed, int octaves, int erosionpasses
 	}
 	srand(time(tseed));
 
-	ccnNoise heightmap, water;
+	ccnNoise heightmap, water, hardness;
 	ccnNoiseAllocate2D(heightmap, width, height);
 	ccnNoiseAllocate2D(water, width, height);
+	ccnNoiseAllocate2D(hardness, width, height);
 
 	ccnNoiseConfiguration config = {
 		.seed = rand(),
@@ -148,19 +149,31 @@ void generateMap(int width, int height, int seed, int octaves, int erosionpasses
 		ccnGenerateValueNoise2D(&heightmap, &config, NOISE_FREQUENCY << i, CCN_INTERP_CUBIC);
 	}
 
-	float ampscale = 1.0 / totalamps;
+	float highest = 0;
+	for(unsigned i = 0; i < width * height; i++){
+		if(heightmap.values[i] > highest){
+			highest = heightmap.values[i];
+		}
+	}
+
+	float ampscale = 1.0 / highest;
 	for(unsigned i = 0; i < width * height; i++){
 		heightmap.values[i] *= ampscale;
 	}
 
 	config.seed = rand();
 	config.range.low = 0.4;
-	config.range.high = 0.5;
-	ccnGenerateOpenSimplex2D(&water, &config, 1);
+	config.range.high = 1.0;
+	ccnGenerateOpenSimplex2D(&water, &config, 2);
+
+	config.seed = rand();
+	config.range.low = 0.0;
+	config.range.high = 1.0;
+	ccnGenerateOpenSimplex2D(&hardness, &config, 1);
 
 	unsigned int i;
 	for(i = 0; i < erosionpasses; i++){
-		erosion(&heightmap, &water);
+		erosion(&heightmap, &water, &hardness);
 	}
 
 	map = (char*)malloc(width * height);	
@@ -214,7 +227,7 @@ void renderMap(int x, int y, int width, int height, int mapx, int mapy)
 			}else{
 				drawChar(i + x, j + y, '=', 237 / 1.5, 201 / 1.5, 175 / 1.5);
 			}
-			//drawChar(i + x, j + y, '#', v, v, v);
+			drawChar(i + x, j + y, '#', v, v, v);
 		}
 	}
 }
