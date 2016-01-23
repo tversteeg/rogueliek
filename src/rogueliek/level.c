@@ -1,11 +1,15 @@
 #include "level.h"
 
 #include <stdlib.h>
+#include <math.h>
 #include <time.h>
 
 #include <ccNoise/ccNoise.h>
 
 #include "window.h"
+
+#define NOISE_PERSISTANCE 0.5
+#define NOISE_FREQUENCY 1
 
 #define EROSION_DELTA_MAX 0.2
 #define EROSION_TRANSFER_SEDIMENT_RATIO 0.1
@@ -20,10 +24,10 @@ static int l_generateMap(lua_State *lua)
 	int width = luaL_checkinteger(lua, 1);
 	int height = luaL_checkinteger(lua, 2);
 	int seed = luaL_checkinteger(lua, 3);
-	int scale = luaL_checkinteger(lua, 4);
+	int octaves = luaL_checkinteger(lua, 4);
 	int erosionpasses = luaL_checkinteger(lua, 5);
 
-	generateMap(width, height, seed, scale, erosionpasses);
+	generateMap(width, height, seed, octaves, erosionpasses);
 
 	return 0;
 }
@@ -104,7 +108,7 @@ void levelRegisterLua(lua_State *lua)
 	lua_register(lua, "rendermap", l_renderMap);
 }
 
-void generateMap(int width, int height, int seed, int scale, int erosionpasses)
+void generateMap(int width, int height, int seed, int octaves, int erosionpasses)
 {
 	if(map != NULL){
 		free(map);
@@ -127,13 +131,26 @@ void generateMap(int width, int height, int seed, int scale, int erosionpasses)
 			.tileMethod = CCN_TILE_CARTESIAN,
 			.xPeriod = 1, .yPeriod = 1
 		},
-		.range.low = 0, .range.high = 1.0 / (float)scale
+		.range = {
+			.low = 0, 
+			.high = NOISE_PERSISTANCE
+		}
 	};
 
-	ccnGenerateValueNoise2D(&heightmap, &config, 1, CCN_INTERP_CUBIC);
+	float amplitude = NOISE_PERSISTANCE;
+	float totalamps = amplitude;
+	ccnGenerateValueNoise2D(&heightmap, &config, NOISE_FREQUENCY << 1, CCN_INTERP_CUBIC);
 	config.storeMethod = CCN_STORE_ADD;
-	for(unsigned i = 1; i < scale; i++){
-		ccnGenerateValueNoise2D(&heightmap, &config, i, CCN_INTERP_CUBIC);
+	for(unsigned i = 1; i < octaves - 1; i++){
+		amplitude *= NOISE_PERSISTANCE;
+		totalamps += amplitude;
+		config.range.high = amplitude;
+		ccnGenerateValueNoise2D(&heightmap, &config, NOISE_FREQUENCY << i, CCN_INTERP_CUBIC);
+	}
+
+	float ampscale = 1.0 / totalamps;
+	for(unsigned i = 0; i < width * height; i++){
+		heightmap.values[i] *= ampscale;
 	}
 
 	config.seed = rand();
@@ -151,6 +168,8 @@ void generateMap(int width, int height, int seed, int scale, int erosionpasses)
 	for(unsigned i = 0; i < width * height; i++){
 		if(water.values[i] > 0.95){
 			map[i] = 255;
+		}else if(heightmap.values[i] < 0){
+			map[i] = 0;
 		}else{
 			map[i] = heightmap.values[i] * 254;
 		}
@@ -195,7 +214,7 @@ void renderMap(int x, int y, int width, int height, int mapx, int mapy)
 			}else{
 				drawChar(i + x, j + y, '=', 237 / 1.5, 201 / 1.5, 175 / 1.5);
 			}
-			drawChar(i + x, j + y, '#', v, v, v);
+			//drawChar(i + x, j + y, '#', v, v, v);
 		}
 	}
 }
