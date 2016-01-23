@@ -8,13 +8,23 @@
 
 #include "window.h"
 
-#define NOISE_PERSISTANCE 0.2
-#define NOISE_FREQUENCY 4
+#define NOISE_PERSISTANCE 0.3
+#define NOISE_FREQUENCY 5
 
 #define EROSION_DELTA_MIN 0.1
-#define EROSION_TRANSFER_SEDIMENT_RATIO 0.5
+#define EROSION_TRANSFER_SEDIMENT_RATIO 0.9
 #define EROSION_TRANSFER_WATER_RATIO 0.1
 #define EROSION_WATER_MIN 0.1
+
+#define max(a,b) \
+	({ __typeof__ (a) _a = (a); \
+	 __typeof__ (b) _b = (b); \
+	 _a > _b ? _a : _b; })
+
+#define min(a,b) \
+	({ __typeof__ (a) _a = (a); \
+	 __typeof__ (b) _b = (b); \
+	 _a < _b ? _a : _b; })
 
 int mwidth, mheight;
 char *map = NULL;
@@ -56,10 +66,10 @@ static inline void setLowestDelta(ccnNoise *height, ccnNoise *water, float *dmax
 	}
 }
 
-static void erosion(ccnNoise *height, ccnNoise *water, ccnNoise *hardness)
+static void erosion(ccnNoise *height, ccnNoise *water, ccnNoise *hardness, ccnNoise *drainage)
 {
 	int size = height->width * height->height;
-	float *sediment = (float*)calloc(size, sizeof(float));
+	float *flow = (float*)calloc(size, sizeof(float));
 
 	int i;
 	for(i = 1; i < height->height - 1; i++){
@@ -78,10 +88,10 @@ static void erosion(ccnNoise *height, ccnNoise *water, ccnNoise *hardness)
 			setLowestDelta(height, water, &delta, index, &indexlowest, j + 1, i);
 			setLowestDelta(height, water, &delta, index, &indexlowest, j, i - 1);
 			setLowestDelta(height, water, &delta, index, &indexlowest, j, i + 1);
-			setLowestDelta(height, water, &delta, index, &indexlowest, j - 1, i - 1);
+			/*setLowestDelta(height, water, &delta, index, &indexlowest, j - 1, i - 1);
 			setLowestDelta(height, water, &delta, index, &indexlowest, j - 1, i + 1);
 			setLowestDelta(height, water, &delta, index, &indexlowest, j + 1, i - 1);
-			setLowestDelta(height, water, &delta, index, &indexlowest, j + 1, i + 1);
+			setLowestDelta(height, water, &delta, index, &indexlowest, j + 1, i + 1);*/
 
 			// Ignore this point if all the surrounding points are higher
 			if(indexlowest == -1 || delta < EROSION_DELTA_MIN){
@@ -89,17 +99,18 @@ static void erosion(ccnNoise *height, ccnNoise *water, ccnNoise *hardness)
 			}
 
 			float waterdelta = water->values[index] * EROSION_TRANSFER_WATER_RATIO;
-			sediment[indexlowest] += waterdelta;
-			sediment[index] -= waterdelta;
+			flow[indexlowest] += waterdelta;
+			flow[index] -= waterdelta;
+			drainage->values[index] = max(drainage->values[index], delta - water->values[index]);
 		}
 	}
 
 	for(i = 0; i < size; i++){
-		height->values[i] += sediment[i] * EROSION_TRANSFER_SEDIMENT_RATIO;
-		water->values[i] += sediment[i];
+		height->values[i] += flow[i] * EROSION_TRANSFER_SEDIMENT_RATIO;
+		water->values[i] += flow[i];
 	}
 
-	free(sediment);
+	free(flow);
 }
 
 void levelRegisterLua(lua_State *lua)
@@ -119,10 +130,11 @@ void generateMap(int width, int height, int seed, int octaves, int erosionpasses
 	}
 	srand(time(tseed));
 
-	ccnNoise heightmap, water, hardness;
+	ccnNoise heightmap, water, hardness, drainage;
 	ccnNoiseAllocate2D(heightmap, width, height);
 	ccnNoiseAllocate2D(water, width, height);
 	ccnNoiseAllocate2D(hardness, width, height);
+	ccnNoiseAllocate2D(drainage, width, height);
 
 	ccnNoiseConfiguration config = {
 		.seed = rand(),
@@ -173,7 +185,7 @@ void generateMap(int width, int height, int seed, int octaves, int erosionpasses
 
 	unsigned int i;
 	for(i = 0; i < erosionpasses; i++){
-		erosion(&heightmap, &water, &hardness);
+		erosion(&heightmap, &water, &hardness, &drainage);
 	}
 
 	map = (char*)malloc(width * height);	
@@ -181,10 +193,12 @@ void generateMap(int width, int height, int seed, int octaves, int erosionpasses
 	for(unsigned i = 0; i < width * height; i++){
 		if(water.values[i] > 0.95){
 			map[i] = 255;
+		}else if(drainage.values[i] > 0.45){
+			map[i] = 254;
 		}else if(heightmap.values[i] < 0){
 			map[i] = 0;
 		}else{
-			map[i] = heightmap.values[i] * 254;
+			map[i] = heightmap.values[i] * 253;
 		}
 	}
 
@@ -217,6 +231,8 @@ void renderMap(int x, int y, int width, int height, int mapx, int mapy)
 		for(j = starty; j < height; j++){
 			unsigned char v = map[mapx + i + (mapy + j) * mwidth];
 			if(v == 255){
+				drawChar(i + x, j + y, '~', 32, 32, 255);
+			}else if(v == 254){
 				drawChar(i + x, j + y, '~', 128, 128, 255);
 			}else if(v > 215){
 				drawChar(i + x, j + y, '^', 255, 255, 255);
@@ -227,7 +243,7 @@ void renderMap(int x, int y, int width, int height, int mapx, int mapy)
 			}else{
 				drawChar(i + x, j + y, '=', 237 / 1.5, 201 / 1.5, 175 / 1.5);
 			}
-			drawChar(i + x, j + y, '#', v, v, v);
+			//drawChar(i + x, j + y, '#', v, v, v);
 		}
 	}
 }
