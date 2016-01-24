@@ -8,8 +8,8 @@
 
 #include "window.h"
 
-#define NOISE_PERSISTANCE 0.3
-#define NOISE_FREQUENCY 5
+#define NOISE_PERSISTANCE 0.1
+#define NOISE_FREQUENCY 3
 
 #define EROSION_DELTA_MIN 0.1
 #define EROSION_TRANSFER_SEDIMENT_RATIO 0.9
@@ -25,6 +25,12 @@
 	({ __typeof__ (a) _a = (a); \
 	 __typeof__ (b) _b = (b); \
 	 _a < _b ? _a : _b; })
+
+typedef struct {
+	float land, water, sediment;
+	float vx, vy;
+	float outflow[4];
+} hydro_t;
 
 int mwidth, mheight;
 char *map = NULL;
@@ -66,51 +72,54 @@ static inline void setLowestDelta(ccnNoise *height, ccnNoise *water, float *dmax
 	}
 }
 
-static void erosion(ccnNoise *height, ccnNoise *water, ccnNoise *hardness, ccnNoise *drainage)
+static inline float calculateOutflow(hydro_t *h, int i1, int i2, int fi)
 {
-	int size = height->width * height->height;
-	float *flow = (float*)calloc(size, sizeof(float));
+	float flow = h[i1].outflow[fi];
+}
 
-	int i;
-	for(i = 1; i < height->height - 1; i++){
-		int j;
-		for(j = 1; j < height->width - 1; j++){
-			int index = j + i * height->width;
-			// Ignore if there is not enough water on this point
-			if(water->values[index] < EROSION_WATER_MIN){
-				continue;
-			}
+static void hydralicErosion(ccnNoise *landheight, int passes)
+{
+	int width = landheight->width;
+	int height = landheight->height;
+	int size = width * height;
 
-			// Find the biggest delta
-			float delta = 0;
-			int indexlowest = -1;
-			setLowestDelta(height, water, &delta, index, &indexlowest, j - 1, i);
-			setLowestDelta(height, water, &delta, index, &indexlowest, j + 1, i);
-			setLowestDelta(height, water, &delta, index, &indexlowest, j, i - 1);
-			setLowestDelta(height, water, &delta, index, &indexlowest, j, i + 1);
-			/*setLowestDelta(height, water, &delta, index, &indexlowest, j - 1, i - 1);
-			setLowestDelta(height, water, &delta, index, &indexlowest, j - 1, i + 1);
-			setLowestDelta(height, water, &delta, index, &indexlowest, j + 1, i - 1);
-			setLowestDelta(height, water, &delta, index, &indexlowest, j + 1, i + 1);*/
+	hydro_t *h = (hydro_t*)calloc(size, sizeof(hydro_t));
 
-			// Ignore this point if all the surrounding points are higher
-			if(indexlowest == -1 || delta < EROSION_DELTA_MIN){
-				continue;
-			}
+	for(int i = 0; i < size; i++){
+		h[i].land = landheight->values[i];
+	}
 
-			float waterdelta = water->values[index] * EROSION_TRANSFER_WATER_RATIO;
-			flow[indexlowest] += waterdelta;
-			flow[index] -= waterdelta;
-			drainage->values[index] = max(drainage->values[index], delta - water->values[index]);
+	ccnNoiseConfiguration rainconfig = {
+		.seed = rand(),
+		.storeMethod = CCN_STORE_SET,
+		.x = 0, .y = 0,
+		.tileConfiguration = {
+			.tileMethod = CCN_TILE_CARTESIAN,
+			.xPeriod = 1, .yPeriod = 1
+		},
+		.range = {
+			.low = 0, 
+			.high = 0.1
 		}
+	};
+
+	for(int p = 0; p < passes; p++){
+		ccnNoise rain;
+		ccnNoiseAllocate2D(rain, width, height);
+		ccnGenerateWhiteNoise2D(&rain, &rainconfig);
+
+		for(int i = 0; i < size; i++){
+			h[i].water += rain.values[i];
+		}
+
+		for(int i = 0; i < size; i++){
+			h[i].outflow[0];
+		}
+
+		ccnNoiseFree(rain);
 	}
 
-	for(i = 0; i < size; i++){
-		height->values[i] += flow[i] * EROSION_TRANSFER_SEDIMENT_RATIO;
-		water->values[i] += flow[i];
-	}
-
-	free(flow);
+	free(h);
 }
 
 void levelRegisterLua(lua_State *lua)
@@ -124,17 +133,15 @@ void generateMap(int width, int height, int seed, int octaves, int erosionpasses
 	if(map != NULL){
 		free(map);
 	}
+
 	time_t *tseed = (time_t*)NULL;
 	if(seed != 0){
 		*tseed = (time_t)seed;
 	}
 	srand(time(tseed));
 
-	ccnNoise heightmap, water, hardness, drainage;
+	ccnNoise heightmap;
 	ccnNoiseAllocate2D(heightmap, width, height);
-	ccnNoiseAllocate2D(water, width, height);
-	ccnNoiseAllocate2D(hardness, width, height);
-	ccnNoiseAllocate2D(drainage, width, height);
 
 	ccnNoiseConfiguration config = {
 		.seed = rand(),
@@ -173,36 +180,14 @@ void generateMap(int width, int height, int seed, int octaves, int erosionpasses
 		heightmap.values[i] *= ampscale;
 	}
 
-	config.seed = rand();
-	config.range.low = 0.4;
-	config.range.high = 1.0;
-	ccnGenerateOpenSimplex2D(&water, &config, 2);
-
-	config.seed = rand();
-	config.range.low = 0.0;
-	config.range.high = 1.0;
-	ccnGenerateOpenSimplex2D(&hardness, &config, 1);
-
-	unsigned int i;
-	for(i = 0; i < erosionpasses; i++){
-		erosion(&heightmap, &water, &hardness, &drainage);
-	}
+	hydralicErosion(&heightmap, erosionpasses);
 
 	map = (char*)malloc(width * height);	
 
 	for(unsigned i = 0; i < width * height; i++){
-		if(water.values[i] > 0.95){
-			map[i] = 255;
-		}else if(drainage.values[i] > 0.45){
-			map[i] = 254;
-		}else if(heightmap.values[i] < 0){
-			map[i] = 0;
-		}else{
-			map[i] = heightmap.values[i] * 253;
-		}
+		map[i] = heightmap.values[i] * 253;
 	}
 
-	ccnNoiseFree(water);
 	ccnNoiseFree(heightmap);
 
 	mwidth = width;
