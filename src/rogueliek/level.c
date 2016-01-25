@@ -12,9 +12,13 @@
 #define NOISE_FREQUENCY 3
 
 #define EROSION_DELTA_MIN 0.1
-#define EROSION_TRANSFER_SEDIMENT_RATIO 0.9
+#define EROSION_SEDIMENT_CAPACITY 0.9
+#define EROSION_SEDIMENT_TRIGGER 0.2
+#define EROSION_SEDIMENT_DISOLVE 0.4
+#define EROSION_SEDIMENT_DEPOSIT 0.3
 #define EROSION_TRANSFER_WATER_RATIO 0.1
 #define EROSION_WATER_MIN 0.1
+#define EROSION_GRAVITY 0.5
 
 #define max(a,b) \
 	({ __typeof__ (a) _a = (a); \
@@ -75,6 +79,9 @@ static inline void setLowestDelta(ccnNoise *height, ccnNoise *water, float *dmax
 static inline float calculateOutflow(hydro_t *h, int i1, int i2, int fi)
 {
 	float flow = h[i1].outflow[fi];
+	float heightdiff = (h[i1].land + h[i1].water) - (h[i2].land + h[i2].water);
+
+	return max(0, flow + heightdiff * EROSION_GRAVITY);
 }
 
 static void hydralicErosion(ccnNoise *landheight, int passes)
@@ -103,9 +110,9 @@ static void hydralicErosion(ccnNoise *landheight, int passes)
 		}
 	};
 
+	ccnNoise rain;
+	ccnNoiseAllocate2D(rain, width, height);
 	for(int p = 0; p < passes; p++){
-		ccnNoise rain;
-		ccnNoiseAllocate2D(rain, width, height);
 		ccnGenerateWhiteNoise2D(&rain, &rainconfig);
 
 		for(int i = 0; i < size; i++){
@@ -113,12 +120,44 @@ static void hydralicErosion(ccnNoise *landheight, int passes)
 		}
 
 		for(int i = 0; i < size; i++){
-			h[i].outflow[0];
+			h[i].outflow[0] = calculateOutflow(h, i, i - 1, 0);
+			h[i].outflow[1] = calculateOutflow(h, i, i + 1, 1);
+			h[i].outflow[2] = calculateOutflow(h, i, i - width, 2);
+			h[i].outflow[3] = calculateOutflow(h, i, i + width, 3);
 		}
 
-		ccnNoiseFree(rain);
+#define _GET_OUTFLOW(h, x, y, width, i) h[(x) + (y) * (width)].outflow[i]
+		for(int y = 1; y < height - 1; y++){
+			for(int x = 1; x < width - 1; x++){
+				float fl = _GET_OUTFLOW(h, x - 1, y, width, 1);
+				float fr = _GET_OUTFLOW(h, x + 1, y, width, 0);
+				float ft = _GET_OUTFLOW(h, x, y - 1, width, 3);
+				float fb = _GET_OUTFLOW(h, x, y + 1, width, 2);
+
+				int i = x + y * width;
+				float *outp = h[i].outflow;
+				h[i].water += (fl + fr + ft + fb) - (outp[0] + outp[1] + outp[2] + outp[3]);
+				h[i].vx = (fr - outp[0] + outp[1] - fl) / 2;
+				h[i].vy = (fb - outp[2] + outp[3] - ft) / 2;
+			}
+		}
+#undef _GET_OUTFLOW
+
+		for(int i = 0; i < size; i++){
+			float sedcap = EROSION_SEDIMENT_CAPACITY * (h[i].vx * h[i].vy) / 2;
+			if(sedcap > EROSION_SEDIMENT_TRIGGER){
+				float sed = EROSION_SEDIMENT_DISOLVE * (sedcap - EROSION_SEDIMENT_TRIGGER);
+				h[i].land -= sed;
+				h[i].sediment += sed;
+			}else{
+				float sed = EROSION_SEDIMENT_DEPOSIT * (sedcap - EROSION_SEDIMENT_TRIGGER);
+				h[i].land += sed;
+				h[i].sediment -= sed;
+			}
+		}
 	}
 
+	ccnNoiseFree(rain);
 	free(h);
 }
 
