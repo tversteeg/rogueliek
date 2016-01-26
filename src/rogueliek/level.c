@@ -11,14 +11,13 @@
 #define NOISE_PERSISTANCE 0.1
 #define NOISE_FREQUENCY 3
 
-#define EROSION_DELTA_MIN 0.1
-#define EROSION_SEDIMENT_CAPACITY 0.9
-#define EROSION_SEDIMENT_TRIGGER 0.2
-#define EROSION_SEDIMENT_DISOLVE 0.4
-#define EROSION_SEDIMENT_DEPOSIT 0.3
-#define EROSION_TRANSFER_WATER_RATIO 0.1
-#define EROSION_WATER_MIN 0.1
-#define EROSION_GRAVITY 0.5
+#define EROSION_SEDIMENT_CAPACITY 25.0
+#define EROSION_SEDIMENT_DISOLVE 0.0001 * 12 * 10
+#define EROSION_SEDIMENT_DEPOSIT 0.0001 * 12 * 10
+#define EROSION_RAIN 0.01
+#define EROSION_EVAPORATION 0.01
+#define EROSION_GRAVITY 9.5
+#define EROSION_FLUX 0.005
 
 #define max(a,b) \
 	({ __typeof__ (a) _a = (a); \
@@ -81,7 +80,7 @@ static inline float calculateOutflow(hydro_t *h, int i1, int i2, int fi)
 	float flow = h[i1].outflow[fi];
 	float heightdiff = (h[i1].land + h[i1].water) - (h[i2].land + h[i2].water);
 
-	return max(0, flow + heightdiff * EROSION_GRAVITY);
+	return max(0, flow + heightdiff * EROSION_GRAVITY * EROSION_FLUX);
 }
 
 static void hydralicErosion(ccnNoise *landheight, int passes)
@@ -106,7 +105,7 @@ static void hydralicErosion(ccnNoise *landheight, int passes)
 		},
 		.range = {
 			.low = 0, 
-			.high = 0.1
+			.high = EROSION_RAIN
 		}
 	};
 
@@ -115,18 +114,27 @@ static void hydralicErosion(ccnNoise *landheight, int passes)
 	for(int p = 0; p < passes; p++){
 		ccnGenerateWhiteNoise2D(&rain, &rainconfig);
 
+		// Rain
 		for(int i = 0; i < size; i++){
 			h[i].water += rain.values[i];
 		}
 
+		// Flux
 		for(int i = 0; i < size; i++){
 			h[i].outflow[0] = calculateOutflow(h, i, i - 1, 0);
 			h[i].outflow[1] = calculateOutflow(h, i, i + 1, 1);
 			h[i].outflow[2] = calculateOutflow(h, i, i - width, 2);
 			h[i].outflow[3] = calculateOutflow(h, i, i + width, 3);
+
+			float sumflux = h[i].outflow[0] + h[i].outflow[1] + h[i].outflow[2] + h[i].outflow[3];
+			float k = min(1.0, h[i].water / sumflux);
+			for(int j = 0; j < 4; j++){
+				h[i].outflow[j] *= k;
+			}
 		}
 
 #define _GET_OUTFLOW(h, x, y, width, i) h[(x) + (y) * (width)].outflow[i]
+		// Flux and velocity
 		for(int y = 1; y < height - 1; y++){
 			for(int x = 1; x < width - 1; x++){
 				float fl = _GET_OUTFLOW(h, x - 1, y, width, 1);
@@ -136,25 +144,51 @@ static void hydralicErosion(ccnNoise *landheight, int passes)
 
 				int i = x + y * width;
 				float *outp = h[i].outflow;
-				h[i].water += (fl + fr + ft + fb) - (outp[0] + outp[1] + outp[2] + outp[3]);
-				h[i].vx = (fr - outp[0] + outp[1] - fl) / 2;
-				h[i].vy = (fb - outp[2] + outp[3] - ft) / 2;
+				float oldwater = h[i].water;
+				h[i].water = max(0.0, h[i].water + (fl + fr + ft + fb) - (outp[0] + outp[1] + outp[2] + outp[3]));
+
+				float meanwater = 0.5 * (oldwater + h[i].water);
+				h[i].vx = 0.5 * (fr - outp[0] + outp[1] - fl) / meanwater;
+				h[i].vy = 0.5 * (fb - outp[2] + outp[3] - ft) / meanwater;
 			}
 		}
 #undef _GET_OUTFLOW
 
+		// Sedimentation and deposition
 		for(int i = 0; i < size; i++){
-			float sedcap = EROSION_SEDIMENT_CAPACITY * (h[i].vx * h[i].vy) / 2;
-			if(sedcap > EROSION_SEDIMENT_TRIGGER){
-				float sed = EROSION_SEDIMENT_DISOLVE * (sedcap - EROSION_SEDIMENT_TRIGGER);
+			// Normalize vector (vx, vy, 2)
+			float len = sqrt(h[i].vx * h[i].vx + h[i].vy * h[i].vy + 4);
+			float sina = max(0.1, sin(acos(2 / len)));
+
+			len = sqrt(h[i].vx * h[i].vx + h[i].vy * h[i].vy);
+			float minwater = min(h[i].water, 0.01) / 0.01;
+			float sedcap = EROSION_SEDIMENT_CAPACITY * len * sina * minwater;
+			float delta = sedcap - h[i].sediment;
+			if(delta > 0){
+				float sed = EROSION_SEDIMENT_DISOLVE * delta;
 				h[i].land -= sed;
 				h[i].sediment += sed;
-			}else{
-				float sed = EROSION_SEDIMENT_DEPOSIT * (sedcap - EROSION_SEDIMENT_TRIGGER);
-				h[i].land += sed;
-				h[i].sediment -= sed;
+				h[i].water += sed;
+			}else if(delta < 0){
+				float sed = EROSION_SEDIMENT_DEPOSIT * delta;
+				h[i].land -= sed;
+				h[i].sediment += sed;
+				h[i].water += sed;
 			}
 		}
+
+		// Evaporation
+		for(int i = 0; i < size; i++){
+			h[i].water *= 1 - EROSION_EVAPORATION;
+			if(h[i].water < 0.005){
+				h[i].water = 0;
+			}
+		}
+	}	
+	
+	// Apply
+	for(int i = 0; i < size; i++){
+		landheight->values[i] = h[i].land;
 	}
 
 	ccnNoiseFree(rain);
