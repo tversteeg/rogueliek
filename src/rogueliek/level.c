@@ -11,13 +11,29 @@
 #define NOISE_PERSISTANCE 0.1
 #define NOISE_FREQUENCY 3
 
-#define EROSION_SEDIMENT_CAPACITY 25.0
+#define HEAT_MAX 30.0
+#define HEAT_MIN -5.0
+
+#define EROSION_SEDIMENT_CAPACITY 200.0
 #define EROSION_SEDIMENT_DISOLVE 0.0001 * 12 * 10
 #define EROSION_SEDIMENT_DEPOSIT 0.0001 * 12 * 10
-#define EROSION_RAIN 0.01
-#define EROSION_EVAPORATION 0.01
+#define EROSION_RAIN 0.1
+#define EROSION_EVAPORATION 0.025
 #define EROSION_GRAVITY 9.5
-#define EROSION_FLUX 0.005
+#define EROSION_FLUX 0.002
+
+enum {
+	MAP_WATER = 0,
+	MAP_WATER_FROZEN,
+	MAP_FOREST_TAIGA,
+	MAP_FOREST_TEMPERATE,
+	MAP_FOREST_TROPICAL,
+	MAP_PLAINS,
+	MAP_PLAINS_TAIGA,
+	MAP_MOUNTAIN,
+	MAP_MOUNTAIN_FROZEN,
+	MAP_DESERT
+};
 
 #define max(a,b) \
 	({ __typeof__ (a) _a = (a); \
@@ -65,16 +81,6 @@ static int l_renderMap(lua_State *lua)
 	return 0;
 }
 
-static inline void setLowestDelta(ccnNoise *height, ccnNoise *water, float *dmax, int index, int *inew, int x2, int y2)
-{
-	int index2 = x2 + height->width * y2;
-	float delta = (height->values[index] + water->values[index]) - (height->values[index2] + water->values[index2]);
-	if(delta > *dmax){
-		*dmax = delta;
-		*inew = index2;
-	}
-}
-
 static inline float calculateOutflow(hydro_t *h, int i1, int i2, int fi)
 {
 	float flow = h[i1].outflow[fi];
@@ -83,7 +89,7 @@ static inline float calculateOutflow(hydro_t *h, int i1, int i2, int fi)
 	return max(0, flow + heightdiff * EROSION_GRAVITY * EROSION_FLUX);
 }
 
-static void hydralicErosion(ccnNoise *landheight, int passes)
+static void hydralicErosion(ccnNoise *landheight, ccnNoise *waterheight, int passes)
 {
 	int width = landheight->width;
 	int height = landheight->height;
@@ -93,6 +99,7 @@ static void hydralicErosion(ccnNoise *landheight, int passes)
 
 	for(int i = 0; i < size; i++){
 		h[i].land = landheight->values[i];
+		h[i].water = waterheight->values[i];
 	}
 
 	ccnNoiseConfiguration rainconfig = {
@@ -189,6 +196,7 @@ static void hydralicErosion(ccnNoise *landheight, int passes)
 	// Apply
 	for(int i = 0; i < size; i++){
 		landheight->values[i] = h[i].land;
+		waterheight->values[i] = h[i].water;
 	}
 
 	ccnNoiseFree(rain);
@@ -213,8 +221,10 @@ void generateMap(int width, int height, int seed, int octaves, int erosionpasses
 	}
 	srand(time(tseed));
 
+	int rw = width + 2;
+	int rh = height + 2;
 	ccnNoise heightmap;
-	ccnNoiseAllocate2D(heightmap, width, height);
+	ccnNoiseAllocate2D(heightmap, rw, rh);
 
 	ccnNoiseConfiguration config = {
 		.seed = rand(),
@@ -242,26 +252,69 @@ void generateMap(int width, int height, int seed, int octaves, int erosionpasses
 	}
 
 	float highest = 0;
-	for(unsigned i = 0; i < width * height; i++){
+	for(unsigned i = 0; i < rw * rh; i++){
 		if(heightmap.values[i] > highest){
 			highest = heightmap.values[i];
 		}
 	}
 
 	float ampscale = 1.0 / highest;
-	for(unsigned i = 0; i < width * height; i++){
+	for(unsigned i = 0; i < rw * rh; i++){
 		heightmap.values[i] *= ampscale;
 	}
 
-	hydralicErosion(&heightmap, erosionpasses);
+	ccnNoise watermap;
+	watermap.values = (float*)calloc(rw * rh, sizeof(float));
+
+	hydralicErosion(&heightmap, &watermap, erosionpasses);
+
+	ccnNoise heatmap;
+	ccnNoiseAllocate2D(heatmap, width, height);
+	for(unsigned y = 0; y < height; y++){
+		for(unsigned x = 0; x < width; x++){
+			heatmap.values[x + y * width] = HEAT_MIN + (HEAT_MAX - HEAT_MIN) * (y / (float)height) * (0.5 + heightmap.values[(x + 1) + (y + 1) * rw] * 0.5);
+		}
+	}
 
 	map = (char*)malloc(width * height);	
 
-	for(unsigned i = 0; i < width * height; i++){
-		map[i] = heightmap.values[i] * 253;
+	for(unsigned y = 0; y < height; y++){
+		for(unsigned x = 0; x < width; x++){
+			unsigned i1 = (x + 1) + (y + 1) * rw;
+			unsigned i2 = x + y * width;
+
+			if(watermap.values[i1] > 2.0){
+				if(heatmap.values[i2] > 0.0){
+					map[i2] = MAP_WATER;
+				}else{
+					map[i2] = MAP_WATER_FROZEN;
+				}
+			}else{
+				map[i2] = heightmap.values[i1] * 253;
+				if(heightmap.values[i1] > 0.8){
+					if(heatmap.values[i2] < 0.0){
+						map[i2] = MAP_MOUNTAIN_FROZEN;
+					}else{
+						map[i2] = MAP_MOUNTAIN;
+					}
+				}else if(heatmap.values[i2] > 20.0){
+					map[i2] = MAP_DESERT;
+				}else if(heatmap.values[i2] < 0.0){
+					if(heightmap.values[i1] > 0.8){
+						map[i2] = MAP_MOUNTAIN;
+					}else{
+						map[i2] = MAP_PLAINS_TAIGA;
+					}
+				}else{
+					map[i2] = MAP_PLAINS;
+				}
+			}
+		}
 	}
 
 	ccnNoiseFree(heightmap);
+	ccnNoiseFree(watermap);
+	ccnNoiseFree(heatmap);
 
 	mwidth = width;
 	mheight = height;
@@ -287,20 +340,46 @@ void renderMap(int x, int y, int width, int height, int mapx, int mapy)
 	for(i = startx; i < width; i++){
 		int j;
 		for(j = starty; j < height; j++){
+			char c = '\0';
+			unsigned char col[3] = {0};
 			unsigned char v = map[mapx + i + (mapy + j) * mwidth];
-			if(v == 255){
-				drawChar(i + x, j + y, '~', 32, 32, 255);
-			}else if(v == 254){
-				drawChar(i + x, j + y, '~', 128, 128, 255);
-			}else if(v > 215){
-				drawChar(i + x, j + y, '^', 255, 255, 255);
-			}else if(v > 160){
-				drawChar(i + x, j + y, '%', v >> 1, v >> 1, v >> 2);
-			}else if(v > 80){
-				drawChar(i + x, j + y, '#', 0, (v >> 1) + 90, 0);
-			}else{
-				drawChar(i + x, j + y, '=', 237 / 1.5, 201 / 1.5, 175 / 1.5);
+			switch(v){
+				case MAP_WATER:
+					c = '~';
+					col[0] = 32, col[1] = 32, col[2] = 255;
+					break;
+				case MAP_WATER_FROZEN:
+					c = '~';
+					col[0] = 255, col[1] = 255, col[2] = 255;
+					break;
+				case MAP_DESERT:
+					c = '.';
+					col[0] = 128, col[1] = 128, col[2] = 64;
+					break;
+				case MAP_MOUNTAIN:
+					c = '^';
+					col[0] = 128, col[1] = 128, col[2] = 64;
+					break;
+				case MAP_MOUNTAIN_FROZEN:
+					c = '^';
+					col[0] = 255, col[1] = 255, col[2] = 255;
+					break;
+				case MAP_FOREST_TAIGA:
+					c = '%';
+					col[0] = 128, col[1] = 255, col[2] = 180;
+					break;
+				case MAP_PLAINS:
+					c = ';';
+					col[0] = 0, col[1] = 255, col[2] = 0;
+					break;
+				case MAP_PLAINS_TAIGA:
+					c = ';';
+					col[0] = 128, col[1] = 255, col[2] = 180;
+					break;
+				default:
+					break;
 			}
+			drawChar(i + x, j + y, c, col[0], col[1], col[2]);
 			//drawChar(i + x, j + y, '#', v, v, v);
 		}
 	}

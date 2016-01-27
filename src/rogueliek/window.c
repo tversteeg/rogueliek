@@ -23,6 +23,7 @@
 
 typedef struct {
 	unsigned char r, g, b;
+	unsigned char br, bg, bb;
 } pixel_t;
 
 typedef struct {
@@ -65,6 +66,19 @@ static int l_drawChar(lua_State *lua)
 	return 0;
 }
 
+static int l_drawCharBack(lua_State *lua)
+{
+	int x = luaL_checkinteger(lua, 1);
+	int y = luaL_checkinteger(lua, 2);
+	unsigned char r = luaL_checkinteger(lua, 4);
+	unsigned char g = luaL_checkinteger(lua, 5);
+	unsigned char b = luaL_checkinteger(lua, 6);
+	
+	drawCharBack(x, y, r, g, b);
+
+	return 0;
+}
+
 static int l_clear(lua_State *lua)
 {
 	clear();
@@ -99,6 +113,9 @@ static void renderLetters()
 		for(x = 0; x < lwidth; x++){
 			conf.x = x * font.gwidth;
 			rchar_t l = letters[x + y * lwidth];
+			if(l.br != 0 && l.bg != 0 && l.bb != 0){
+
+			}
 			if(l.r == 0 && l.g == 0 && l.b == 0){
 				continue;
 			}
@@ -253,7 +270,11 @@ void drawChar(int x, int y, char c, unsigned char r, unsigned char g, unsigned c
 		return;
 	}
 
-	letters[x + y * lwidth] = (rchar_t){.c = c, .r = r, .g = g, .b = b};
+	rchar_t *l = letters + x + y * lwidth;
+	l->c = c;
+	l->r = r;
+	l->g = g;
+	l->b = b;
 
 	updatescreen = true;
 }
@@ -266,6 +287,16 @@ void drawString(int x, int y, const char *text, unsigned char r, unsigned char g
 	for(i = 0; i < len; i++){
 		drawChar(x + i, y, text[i], r, g, b);
 	}
+}
+
+void drawCharBack(int x, int y, unsigned char r, unsigned char g, unsigned char b)
+{
+	rchar_t *l = letters + x + y * lwidth;
+	l->br = r;
+	l->bg = g;
+	l->bb = b;
+
+	updatescreen = true;
 }
 
 void clear()
