@@ -23,12 +23,12 @@
 
 typedef struct {
 	unsigned char r, g, b;
-	unsigned char br, bg, bb;
 } pixel_t;
 
 typedef struct {
 	char c;
 	unsigned char r, g, b;
+	unsigned char br, bg, bb;
 } rchar_t;
 
 static GLuint gltex;
@@ -106,16 +106,19 @@ static void renderLetters()
 
 	ccfFontConfiguration conf = {.x = 0, .width = 0, .wraptype = 0};
 
-	int y;
-	for(y = 0; y < lheight; y++){
+	for(int y = 0; y < lheight; y++){
 		conf.y = y * font.gheight;
-		int x;
-		for(x = 0; x < lwidth; x++){
+		for(int x = 0; x < lwidth; x++){
 			conf.x = x * font.gwidth;
 			rchar_t l = letters[x + y * lwidth];
-			if(l.br != 0 && l.bg != 0 && l.bb != 0){
-
+			if(l.br != 0 || l.bg != 0 || l.bb != 0){
+				for(int i = 0; i < font.gheight; i++){
+					for(int j = 0; j < font.gwidth; j++){
+						pixels[conf.x + j + (conf.y + i) * wwidth] = (pixel_t){l.br, l.bg, l.bb};
+					}
+				}
 			}
+
 			if(l.r == 0 && l.g == 0 && l.b == 0){
 				continue;
 			}
@@ -125,12 +128,15 @@ static void renderLetters()
 			ccfGLTexBlitChar(&font, l.c, &conf, wwidth, wheight, GL_RGB, GL_UNSIGNED_BYTE, (void*)pixels);
 		}
 	}
+
+	updatescreen = false;
 }
 
 void windowRegisterLua(lua_State *lua)
 {
 	lua_register(lua, "drawstring", l_drawString);
 	lua_register(lua, "drawchar", l_drawChar);
+	lua_register(lua, "drawcharback", l_drawCharBack);
 	lua_register(lua, "clear", l_clear);
 	lua_register(lua, "getwidth", l_getWidth);
 	lua_register(lua, "getheight", l_getHeight);

@@ -342,43 +342,53 @@ void renderMap(int x, int y, int width, int height, int mapx, int mapy)
 		for(j = starty; j < height; j++){
 			char c = '\0';
 			unsigned char col[3] = {0};
+			unsigned char cbg[3] = {0};
 			unsigned char v = map[mapx + i + (mapy + j) * mwidth];
 			switch(v){
 				case MAP_WATER:
 					c = '~';
 					col[0] = 32, col[1] = 32, col[2] = 255;
+					cbg[0] = 0, cbg[1] = 0, cbg[2] = 255;
 					break;
 				case MAP_WATER_FROZEN:
 					c = '~';
 					col[0] = 255, col[1] = 255, col[2] = 255;
+					cbg[0] = 128, cbg[1] = 128, cbg[2] = 255;
 					break;
 				case MAP_DESERT:
 					c = '.';
 					col[0] = 128, col[1] = 128, col[2] = 64;
+					cbg[0] = 64, cbg[1] = 64, cbg[2] = 32;
 					break;
 				case MAP_MOUNTAIN:
 					c = '^';
 					col[0] = 128, col[1] = 128, col[2] = 64;
+					cbg[0] = 64, cbg[1] = 64, cbg[2] = 32;
 					break;
 				case MAP_MOUNTAIN_FROZEN:
 					c = '^';
 					col[0] = 255, col[1] = 255, col[2] = 255;
+					cbg[0] = 64, cbg[1] = 64, cbg[2] = 32;
 					break;
 				case MAP_FOREST_TAIGA:
 					c = '%';
 					col[0] = 128, col[1] = 255, col[2] = 180;
+					cbg[0] = 64, cbg[1] = 64, cbg[2] = 32;
 					break;
 				case MAP_PLAINS:
 					c = ';';
 					col[0] = 0, col[1] = 255, col[2] = 0;
+					cbg[0] = 64, cbg[1] = 64, cbg[2] = 32;
 					break;
 				case MAP_PLAINS_TAIGA:
 					c = ';';
 					col[0] = 128, col[1] = 255, col[2] = 180;
+					cbg[0] = 64, cbg[1] = 64, cbg[2] = 32;
 					break;
 				default:
 					break;
 			}
+			drawCharBack(i + x, j + y, cbg[0], cbg[1], cbg[2]);
 			drawChar(i + x, j + y, c, col[0], col[1], col[2]);
 			//drawChar(i + x, j + y, '#', v, v, v);
 		}
