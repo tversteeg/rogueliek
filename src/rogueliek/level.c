@@ -17,7 +17,7 @@
 #define EROSION_SEDIMENT_CAPACITY 200.0
 #define EROSION_SEDIMENT_DISOLVE 0.0001 * 12 * 10
 #define EROSION_SEDIMENT_DEPOSIT 0.0001 * 12 * 10
-#define EROSION_RAIN 0.1
+#define EROSION_RAIN 0.05
 #define EROSION_EVAPORATION 0.025
 #define EROSION_GRAVITY 9.5
 #define EROSION_FLUX 0.002
@@ -89,7 +89,7 @@ static inline float calculateOutflow(hydro_t *h, int i1, int i2, int fi)
 	return max(0, flow + heightdiff * EROSION_GRAVITY * EROSION_FLUX);
 }
 
-static void hydralicErosion(ccnNoise *landheight, ccnNoise *waterheight, int passes)
+static void hydralicErosion(ccnNoise *landheight, ccnNoise *waterheight, ccnNoise *rainmap, int passes)
 {
 	int width = landheight->width;
 	int height = landheight->height;
@@ -123,11 +123,11 @@ static void hydralicErosion(ccnNoise *landheight, ccnNoise *waterheight, int pas
 
 		// Rain
 		for(int i = 0; i < size; i++){
-			h[i].water += rain.values[i];
+			h[i].water += rainmap->values[i] + rain.values[i];
 		}
 
 		// Flux
-		for(int i = 0; i < size; i++){
+		for(int i = width; i < size - width; i++){
 			h[i].outflow[0] = calculateOutflow(h, i, i - 1, 0);
 			h[i].outflow[1] = calculateOutflow(h, i, i + 1, 1);
 			h[i].outflow[2] = calculateOutflow(h, i, i - width, 2);
@@ -263,10 +263,28 @@ void generateMap(int width, int height, int seed, int octaves, int erosionpasses
 		heightmap.values[i] *= ampscale;
 	}
 
+	config = (ccnNoiseConfiguration){
+		.seed = rand(),
+		.storeMethod = CCN_STORE_SET,
+		.x = 0, .y = 0,
+		.tileConfiguration = {
+			.tileMethod = CCN_TILE_CARTESIAN,
+			.xPeriod = 1, .yPeriod = 1
+		},
+		.range = {
+			.low = 0, 
+			.high = EROSION_RAIN
+		}
+	};
+
+	ccnNoise rainmap;
+	ccnNoiseAllocate2D(rainmap, rw, rh);
+	ccnGenerateValueNoise2D(&rainmap, &config, 10, CCN_INTERP_CUBIC);
+
 	ccnNoise watermap;
 	watermap.values = (float*)calloc(rw * rh, sizeof(float));
 
-	hydralicErosion(&heightmap, &watermap, erosionpasses);
+	hydralicErosion(&heightmap, &watermap, &rainmap, erosionpasses);
 
 	ccnNoise heatmap;
 	ccnNoiseAllocate2D(heatmap, width, height);
@@ -298,7 +316,11 @@ void generateMap(int width, int height, int seed, int octaves, int erosionpasses
 						map[i2] = MAP_MOUNTAIN;
 					}
 				}else if(heatmap.values[i2] > 20.0){
-					map[i2] = MAP_DESERT;
+					if(rainmap.values[i1] > EROSION_RAIN / 2){
+						map[i2] = MAP_FOREST_TROPICAL;
+					}else{
+						map[i2] = MAP_DESERT;
+					}
 				}else if(heatmap.values[i2] < 0.0){
 					if(heightmap.values[i1] > 0.8){
 						map[i2] = MAP_MOUNTAIN;
@@ -348,7 +370,7 @@ void renderMap(int x, int y, int width, int height, int mapx, int mapy)
 				case MAP_WATER:
 					c = '~';
 					col[0] = 32, col[1] = 32, col[2] = 255;
-					cbg[0] = 0, cbg[1] = 0, cbg[2] = 255;
+					cbg[0] = 64, cbg[1] = 64, cbg[2] = 255;
 					break;
 				case MAP_WATER_FROZEN:
 					c = '~';
@@ -358,34 +380,42 @@ void renderMap(int x, int y, int width, int height, int mapx, int mapy)
 				case MAP_DESERT:
 					c = '.';
 					col[0] = 128, col[1] = 128, col[2] = 64;
-					cbg[0] = 64, cbg[1] = 64, cbg[2] = 32;
+					cbg[0] = 128, cbg[1] = 128, cbg[2] = 64;
 					break;
 				case MAP_MOUNTAIN:
 					c = '^';
 					col[0] = 128, col[1] = 128, col[2] = 64;
-					cbg[0] = 64, cbg[1] = 64, cbg[2] = 32;
+					cbg[0] = 32, cbg[1] = 32, cbg[2] = 16;
 					break;
 				case MAP_MOUNTAIN_FROZEN:
 					c = '^';
 					col[0] = 255, col[1] = 255, col[2] = 255;
-					cbg[0] = 64, cbg[1] = 64, cbg[2] = 32;
+					cbg[0] = 64, cbg[1] = 64, cbg[2] = 64;
 					break;
 				case MAP_FOREST_TAIGA:
 					c = '%';
 					col[0] = 128, col[1] = 255, col[2] = 180;
-					cbg[0] = 64, cbg[1] = 64, cbg[2] = 32;
+					cbg[0] = 64, cbg[1] = 64, cbg[2] = 128;
+					break;
+				case MAP_FOREST_TROPICAL:
+					c = '%';
+					col[0] = 128, col[1] = 255, col[2] = 180;
+					cbg[0] = 0, cbg[1] = 120, cbg[2] = 0;
 					break;
 				case MAP_PLAINS:
 					c = ';';
 					col[0] = 0, col[1] = 255, col[2] = 0;
-					cbg[0] = 64, cbg[1] = 64, cbg[2] = 32;
+					cbg[0] = 32, cbg[1] = 64, cbg[2] = 32;
 					break;
 				case MAP_PLAINS_TAIGA:
 					c = ';';
 					col[0] = 128, col[1] = 255, col[2] = 180;
-					cbg[0] = 64, cbg[1] = 64, cbg[2] = 32;
+					cbg[0] = 64, cbg[1] = 128, cbg[2] = 128;
 					break;
 				default:
+					c = 'E';
+					col[0] = 255, col[1] = 255, col[2] = 0;
+					cbg[0] = 0, cbg[1] = 255, cbg[2] = 255;
 					break;
 			}
 			drawCharBack(i + x, j + y, cbg[0], cbg[1], cbg[2]);
