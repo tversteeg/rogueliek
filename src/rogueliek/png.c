@@ -23,9 +23,19 @@ static int l_loadPng(lua_State *lua)
 	return 0;
 }
 
+static int l_getPngId(lua_State *lua)
+{
+	const char *name = luaL_checkstring(lua, 1);
+
+	lua_pushinteger(lua, getPngId(name));
+
+	return 1;
+}
+
 void pngRegisterLua(lua_State *lua)
 {
 	lua_register(lua, "loadpng", l_loadPng);
+	lua_register(lua, "getpngid", l_getPngId);
 }
 
 static int getSizePng(const char *file, unsigned int *width, unsigned int *height)
@@ -123,6 +133,11 @@ static int loadDataPng(const char *file, unsigned char **tex)
 
 	png_byte colortype = png_get_color_type(png, info);
 
+	if(colortype != PNG_COLOR_TYPE_RGB && colortype != PNG_COLOR_TYPE_RGBA){
+		printf("Unrecognized PNG colortype: %d\n", colortype);
+		return false;
+	}
+
 	png_read_update_info(png, info);
 
 	if(setjmp(png_jmpbuf(png))){
@@ -174,11 +189,6 @@ static int loadDataPng(const char *file, unsigned char **tex)
 	free(rows);
 
 	png_destroy_read_struct(&png, &info, NULL);
-
-	if(colortype != PNG_COLOR_TYPE_RGB && colortype != PNG_COLOR_TYPE_RGBA){
-		printf("Unrecognized PNG colortype: %d\n", colortype);
-		return false;
-	}
 
 	return true;
 }

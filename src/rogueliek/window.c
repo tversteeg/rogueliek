@@ -342,6 +342,23 @@ void drawPng(int id, int x, int y)
 		exit(1);
 	}
 	
+	int width = getPngWidth(id);
+	int height = getPngHeight(id);
+	const unsigned char *data = getPngData(id);
+
+	for(unsigned y1 = 0; y1 < height; y1++){
+		for(unsigned x1 = 0; x1 < width; x1++){
+			int i = (x1 + y1 * width) * 4;
+			int i2 = x1 + x + (y1 + y) * wwidth;
+			pixel_t *out = pixels + i2;
+			if(data[i + 3] < 128){
+				continue;
+			}
+			out->r = data[i];
+			out->g = data[i + 1];
+			out->b = data[i + 2];
+		}
+	}
 }
 
 void drawPngName(const char *name, int x, int y)
