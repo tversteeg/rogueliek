@@ -1,7 +1,11 @@
 local rogue = {}
 
-function rogue.update()
+function rogue.init()
 	print("Rogue!")
+end
+
+function rogue.update()
+	clear()
 end
 
 return rogue

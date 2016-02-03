@@ -13,6 +13,7 @@
 #include <lua5.3/lauxlib.h>
 #include <lua5.3/lualib.h>
 
+#include "png.h"
 #include "utils.h"
 
 #ifdef WINDOWS
@@ -79,6 +80,28 @@ static int l_drawCharBack(lua_State *lua)
 	return 0;
 }
 
+static int l_drawPng(lua_State *lua)
+{
+	int id = luaL_checkinteger(lua, 1);
+	int x = luaL_checkinteger(lua, 2);
+	int y = luaL_checkinteger(lua, 3);
+	
+	drawPng(id, x, y);
+
+	return 0;
+}
+
+static int l_drawPngName(lua_State *lua)
+{
+	const char *name = luaL_checkstring(lua, 1);
+	int x = luaL_checkinteger(lua, 2);
+	int y = luaL_checkinteger(lua, 3);
+	
+	drawPngName(name, x, y);
+
+	return 0;
+}
+
 static int l_clear(lua_State *lua)
 {
 	clear();
@@ -137,6 +160,8 @@ void windowRegisterLua(lua_State *lua)
 	lua_register(lua, "drawstring", l_drawString);
 	lua_register(lua, "drawchar", l_drawChar);
 	lua_register(lua, "drawcharback", l_drawCharBack);
+	lua_register(lua, "drawpng", l_drawPng);
+	lua_register(lua, "drawpngname", l_drawPngName);
 	lua_register(lua, "clear", l_clear);
 	lua_register(lua, "getwidth", l_getWidth);
 	lua_register(lua, "getheight", l_getHeight);
@@ -308,6 +333,25 @@ void drawCharBack(int x, int y, unsigned char r, unsigned char g, unsigned char 
 	l->bb = b;
 
 	updatescreen = true;
+}
+
+void drawPng(int id, int x, int y)
+{
+	if(id < 0){
+		fprintf(stderr, "No PNG with id: %d\n", id);
+		exit(1);
+	}
+	
+}
+
+void drawPngName(const char *name, int x, int y)
+{
+	int id = getPngId(name);
+	if(id < 0){
+		fprintf(stderr, "PNG file with name \"%s\" not loaded\n", name);
+		exit(1);
+	}
+	drawPng(id, x, y);
 }
 
 void clear()

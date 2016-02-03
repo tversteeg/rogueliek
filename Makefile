@@ -7,7 +7,7 @@ BINDIR=bin
 
 RM=rm -f
 CFLAGS=-g -Wall -D_DEBUG -DCC_USE_ALL
-LDLIBS=-lccFont -lccNoise -lccRandom -lccTrigonometry -lccore -lGL -lGLU -lGLEW -lm -lX11 -lXrandr -lXinerama -lXi -lpthread -llua5.3
+LDLIBS=-lccFont -lccNoise -lccRandom -lccTrigonometry -lccore -lGL -lGLU -lGLEW -lm -lX11 -lXrandr -lXinerama -lXi -lpthread -llua5.3 -lpng
 
 UCNAME=$(shell echo $(NAME) | tr a-z A-Z)
 CFLAGS+=-D$(UCNAME)_VERSION=$(VERSION) 
@@ -15,10 +15,9 @@ CFLAGS+=-D$(UCNAME)_VERSION=$(VERSION)
 SRCS=$(shell find $(SOURCEDIR) -name '*.c')
 OBJS=$(subst .c,.o,$(SRCS))
 
-all: $(NAME)
+all: $(BINDIR)/$(NAME)
 
-.PHONY: $(NAME)
-$(NAME): $(OBJS) .depend
+$(BINDIR)/$(NAME): $(OBJS) .depend
 	@(mkdir -p $(BINDIR))
 	$(CC) $(LDFLAGS) -o $(BINDIR)/$(NAME) $(OBJS) $(LDLIBS)
 

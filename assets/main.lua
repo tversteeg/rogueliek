@@ -50,6 +50,7 @@ function keydown(keycode)
 			elseif menu_items[menu_selected] == "Diablolike" then
 				game = diablo
 			end
+			game.init()
 		end
 	elseif state == "Game" then
 		if keycode == 65364 then
