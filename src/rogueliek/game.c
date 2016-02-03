@@ -77,6 +77,8 @@ void runGame()
 			lua_call(lua, 0, 0);
 		}
 
+		lua_getglobal(lua, "render");
+		lua_call(lua, 0, 0);
 		renderWindow(1);
 	}
 }

@@ -6,6 +6,10 @@ function diablo.init()
 end
 
 function diablo.update()
+end
+
+function diablo.render()
+	clear()
 	drawpngname("zombie", 10, 10)
 end
 

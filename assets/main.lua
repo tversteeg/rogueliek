@@ -97,3 +97,9 @@ function update()
 		game.update()
 	end
 end
+
+function render()
+	if state == "Game" then
+		game.render()
+	end
+end
