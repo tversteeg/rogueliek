@@ -5,6 +5,7 @@
 #include <dirent.h>
 
 #include <ccore/file.h>
+#include <ccore/time.h>
 
 #include "window.h"
 #include "level.h"
@@ -15,6 +16,9 @@
 
 #define DEFAULT_WIDTH 800
 #define DEFAULT_HEIGHT 600
+
+#define FRAME_CAP 0.25
+#define FRAME_DELTA (1.0 / 60.0)
 
 static char assetdir[256] = "./";
 static lua_State *lua;
@@ -46,14 +50,30 @@ void runGame()
 	lua_getglobal(lua, "setup");
 	lua_call(lua, 0, 0);
 
+	uint64_t curtime = ccTimeMilliseconds();
+	double acctime = 0.0;
+
 	while(true){
 		if(!updateWindow(lua)){
 			break;
 		}
 
-		lua_getglobal(lua, "update");
-		lua_call(lua, 0, 0);
-		renderWindow(6);
+		uint64_t newtime = ccTimeMilliseconds();
+		double frametime = (newtime - curtime) * 0.001;
+		curtime = newtime;
+
+		if(frametime > FRAME_CAP){
+			frametime = FRAME_CAP;
+		}
+		acctime += frametime;
+
+		while(acctime >= FRAME_DELTA){
+			acctime -= FRAME_DELTA;
+			lua_getglobal(lua, "update");
+			lua_call(lua, 0, 0);
+		}
+
+		renderWindow(1);
 	}
 }
 
