@@ -37,6 +37,8 @@ void loadLua()
 		exit(1);
 	}
 
+	lua_pushstring(lua, assetdir);
+	lua_setglobal(lua, "assetdir");
 	if(luaL_loadfile(lua, file) || lua_pcall(lua, 0, 0, 0)){
 		fprintf(stderr, "Lua error: %s\n", lua_tostring(lua, -1));
 		exit(1);

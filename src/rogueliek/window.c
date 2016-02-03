@@ -194,6 +194,11 @@ bool updateWindow(lua_State *lua)
 				lua_pushinteger(lua, event.keyCode);
 				lua_call(lua, 1, 0);
 				break;
+			case CC_EVENT_KEY_UP:
+				lua_getglobal(lua, "keyup");
+				lua_pushinteger(lua, event.keyCode);
+				lua_call(lua, 1, 0);
+				break;
 			default: break;
 		}
 	}
