@@ -10,6 +10,7 @@
 #include "window.h"
 #include "level.h"
 #include "png.h"
+#include "delaunay.h"
 #include "utils.h"
 
 #define STRINGIFY(x) #x
@@ -32,6 +33,7 @@ void loadLua()
 	levelRegisterLua(lua);
 	windowRegisterLua(lua);
 	pngRegisterLua(lua);
+	delaunayRegisterLua(lua);
 
 	char *file = findFileFromExtension(assetdir, "lua");
 	if(file == NULL){

@@ -78,7 +78,7 @@ function keyup(keycode)
 end
 
 function setup()
-	generatemap(getwidth(), getheight(), 0, 10, 50)
+	math.randomseed(os.time())
 end
 
 function update()
