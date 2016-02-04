@@ -125,8 +125,6 @@ static int l_getHeight(lua_State *lua)
 
 static void renderLetters()
 {
-	memset(pixels, 0, wwidth * wheight * sizeof(pixel_t));
-
 	ccfFontConfiguration conf = {.x = 0, .width = 0, .wraptype = 0};
 
 	for(int y = 0; y < lheight; y++){
@@ -237,6 +235,7 @@ void renderWindow(int ms)
 		renderLetters();
 		updatescreen = false;
 	}
+
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	glBindTexture(GL_TEXTURE_2D, gltex);
@@ -359,6 +358,8 @@ void drawPng(int id, int x, int y)
 			out->b = data[i + 2];
 		}
 	}
+
+	updatescreen = true;
 }
 
 void drawPngName(const char *name, int x, int y)
@@ -374,6 +375,7 @@ void drawPngName(const char *name, int x, int y)
 void clear()
 {
 	memset(letters, 0, lwidth * lheight * sizeof(rchar_t));
+	memset(pixels, 0, wwidth * wheight * sizeof(pixel_t));
 	
 	updatescreen = true;
 }

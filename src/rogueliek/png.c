@@ -133,6 +133,11 @@ static int loadDataPng(const char *file, unsigned char **tex)
 
 	png_byte colortype = png_get_color_type(png, info);
 
+	if(colortype == PNG_COLOR_TYPE_PALETTE){
+		png_set_palette_to_rgb(png);
+		colortype = PNG_COLOR_TYPE_RGB;
+	}
+
 	if(colortype != PNG_COLOR_TYPE_RGB && colortype != PNG_COLOR_TYPE_RGBA){
 		printf("Unrecognized PNG colortype: %d\n", colortype);
 		return false;

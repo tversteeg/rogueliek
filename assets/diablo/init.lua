@@ -11,6 +11,7 @@ end
 function diablo.render()
 	clear()
 	drawpngname("zombie", 10, 10)
+	drawstring(2, 2, "Bla", 255, 0, 0)
 end
 
 return diablo
