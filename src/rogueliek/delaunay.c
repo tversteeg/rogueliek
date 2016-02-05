@@ -2,12 +2,27 @@
 
 #include <stdlib.h>
 #include <stdbool.h>
+#include <float.h>
+
+#define max(a ,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a > _b ? _a : _b; })
+
+#define min(a, b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a < _b ? _a : _b; })
 
 #define SORT_MAX_LEVELS 64
 
 typedef struct {
 	float x, y;
 } _vert;
+
+typedef struct {
+	_vert p1, p2, p3;
+} _tri;
 
 static int l_delaunayTriangulate(lua_State *lua)
 {
@@ -43,7 +58,7 @@ static int l_delaunayTriangulate(lua_State *lua)
 	return 0;
 }
 
-static bool sortFunc(_vert v1, _vert v2)
+static inline bool sortFunc(_vert v1, _vert v2)
 {
 	if(v1.x < v2.x){
 		return true;
@@ -53,7 +68,7 @@ static bool sortFunc(_vert v1, _vert v2)
 	return false;
 }
 
-static void swapInt(int *x, int *y){
+static inline void swapInt(int *x, int *y){
 	*x ^= *y;
 	*y ^= *x;
 	*x ^= *y;
@@ -99,6 +114,47 @@ static void sortPositions(_vert *vs, int amount)
 	}
 }
 
+static inline bool pointInCircumcircle(_vert p, _tri t)
+{
+	float px2 = p.x * p.x;
+	float py2 = p.y * p.y;
+
+	float a = t.p1.x - p.x;
+	float b = t.p1.y - p.y;
+	float c = (t.p1.x * t.p1.x - px2) + (t.p1.y * t.p1.y - py2);
+	
+	float d = t.p2.x - p.x;
+	float e = t.p2.y - p.y;
+	float f = (t.p2.x * t.p2.x - px2) + (t.p2.y * t.p2.y - py2);
+
+	float g = t.p3.x - p.x;
+	float h = t.p3.y - p.y;
+	float i = (t.p3.x * t.p3.x - px2) + (t.p3.y * t.p3.y - py2);
+
+	float determinant = a * e * i + b * f * g - c * e * g - b * d * i - a * f * h;
+	return determinant > 0;
+}
+
+static inline bool sameEdge(_vert p1, _vert p2, _vert p3, _vert p4)
+{
+	return ((p1.x == p3.x) && (p1.y == p3.y) &&
+		(p2.x == p4.x) && (p2.y == p4.y)) ||
+		((p1.x == p4.x) && (p1.y == p4.y) &&
+		(p2.x == p3.x) && (p2.y == p3.y));
+}
+
+static inline int getSharedEdge(_tri t1, _vert p1, _vert p2)
+{
+	if(sameEdge(t1.p1, t1.p2, p1, p2)){
+		return 1;
+	}else if(sameEdge(t1.p2, t1.p3, p1, p2)){
+		return 2;
+	}else if(sameEdge(t1.p3, t1.p1, p1, p2)){
+		return 3;
+	}
+	return -1;
+}
+
 void delaunayRegisterLua(lua_State *lua)
 {
 	lua_register(lua, "delaunaytriangulate", l_delaunayTriangulate);
@@ -107,19 +163,94 @@ void delaunayRegisterLua(lua_State *lua)
 int delaunayTriangulate(int **ids, const float *x, const float *y, int amount)
 {
 	_vert *vs = (_vert*)malloc(amount * sizeof(_vert));
+
 	for(int i = 0; i < amount; i++){
 		vs[i].x = x[i];
 		vs[i].y = y[i];
-		printf("(%.f, %.f) ", vs[i].x, vs[i].y);
 	}
 
 	sortPositions(vs, amount);
-	printf("\n");
+
+	// Find super triangle
+	float xmin = FLT_MAX;
+	float ymin = FLT_MAX;
+	float xmax = FLT_MIN;
+	float ymax = FLT_MIN;
 
 	for(int i = 0; i < amount; i++){
-		printf("(%.f, %.f) ", vs[i].x, vs[i].y);
+		xmin = min(xmin, vs[i].x);
+		ymin = min(ymin, vs[i].y);
+		xmax = max(xmax, vs[i].x);
+		ymax = max(ymax, vs[i].y);
 	}
-	printf("\n\n");
+
+	float dx = xmax - xmin;
+	float dy = ymax - ymin;
+	float dmax = max(dx, dy);
+	float xmid = xmin + dx * 0.5f;
+	float ymid = ymin + dy * 0.5f;
+
+	_vert sp1 = {.x = xmid - 20 * dmax, .y = ymid - dmax};
+	_vert sp2 = {.x = xmid, .y = ymid + 20 * dmax};
+	_vert sp3 = {.x = xmid + 20 * dmax, .y = ymid - dmax};
+
+	// Create triangle list and add the super triangle to it
+	_tri *tris = (_tri*)malloc(amount * sizeof(_tri));
+	tris[0] = (_tri){sp1, sp2, sp3};
+	int ntris = 1;
+
+	_tri **badtris = (_tri**)malloc(amount * sizeof(_tri*));
+	int nbadtris = 0;
+
+	_vert *poly = (_vert*)malloc(amount * sizeof(_vert) * 2);
+	int npoly = 0;
+
+	// Add all points one by one to the triangle list by recomputing triangles
+	for(int i = 0; i < amount; i++){
+		nbadtris = 0;
+		// Find all invalid triangles
+		for(int j = 0; j < ntris; j++){
+			if(pointInCircumcircle(vs[i], tris[j])){
+				badtris[nbadtris] = &tris[j];
+				nbadtris++;
+			}
+		}
+
+		// Find the polygonal boundary
+		for(int j = 0; j < nbadtris; j++){
+			_tri t1 = *(badtris[j]);
+			for(int k = j + 1; k < nbadtris; k++){
+				_tri t2 = *(badtris[k]);
+				int edge = getSharedEdge(t2, t1.p1, t1.p2);
+				if(edge == 1){
+					poly[npoly++] = t2.p1;
+					poly[npoly++] = t2.p2;
+				}else if(edge == 2){
+					poly[npoly++] = t2.p2;
+					poly[npoly++] = t2.p3;
+				}else if(edge == 3){
+					poly[npoly++] = t2.p3;
+					poly[npoly++] = t2.p1;
+				}
+			}
+		}
+
+		// Remove triangles from tris which are also in the boundary polygon
+		for(int j = 0; j < nbadtris; j++){
+			_tri *t = badtris[j];
+			for(int k = ntris - 1; k >= 0; k++){
+				if(tris + i == t){
+					ntris--;
+				}
+			}
+		}
+
+		printf("%d\n", nbadtris);
+	}
+
+	free(badtris);
+	free(tris);
+	free(vs);
 
 	return 0;
 }
