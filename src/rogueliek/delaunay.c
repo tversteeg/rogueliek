@@ -177,18 +177,6 @@ static inline bool sameEdge(_vert p1, _vert p2, _vert p3, _vert p4)
 		(p2.x == p3.x) && (p2.y == p3.y));
 }
 
-static inline int getSharedEdge(_tri t1, _vert p1, _vert p2)
-{
-	if(sameEdge(t1.p1, t1.p2, p1, p2)){
-		return 1;
-	}else if(sameEdge(t1.p2, t1.p3, p1, p2)){
-		return 2;
-	}else if(sameEdge(t1.p3, t1.p1, p1, p2)){
-		return 3;
-	}
-	return -1;
-}
-
 void delaunayRegisterLua(lua_State *lua)
 {
 	lua_register(lua, "delaunaytriangulate", l_delaunayTriangulate);
@@ -200,7 +188,7 @@ int delaunayTriangulate(int **ids, const float *x, const float *y, int amount)
 		return -1;
 	}
 
-	_vert *vs = (_vert*)malloc(amount * sizeof(_vert));
+	_vert *vs = (_vert*)malloc((amount + 3) * sizeof(_vert));
 
 	for(int i = 0; i < amount; i++){
 		vs[i].x = x[i];
@@ -232,69 +220,69 @@ int delaunayTriangulate(int **ids, const float *x, const float *y, int amount)
 	_vert sp2 = {.x = xmid, .y = ymid + 20 * dmax};
 	_vert sp3 = {.x = xmid + 20 * dmax, .y = ymid - dmax};
 
+	vs[amount + 0] = sp1;
+	vs[amount + 1] = sp2;
+	vs[amount + 2] = sp3;
+	amount += 3;
+
 	// Create triangle list and add the super triangle to it
-	_tri *tris = (_tri*)malloc(amount * sizeof(_tri));
+	_tri *tris = (_tri*)malloc((amount * 2) * sizeof(_tri));
 	tris[0] = (_tri){sp1, sp2, sp3};
 	int ntris = 1;
 
-	_tri **badtris = (_tri**)malloc(amount * sizeof(_tri*));
-	_vert *edges = (_vert*)malloc(amount * sizeof(_vert) * 2);
+	_vert *edges = (_vert*)malloc((amount * 2) * sizeof(_vert) * 2);
+	_vert *goodedges = (_vert*)malloc((amount * 2) * sizeof(_vert) * 2);
 
 	// Add all points one by one to the triangle list by recomputing triangles
 	for(int i = 0; i < amount; i++){
-		int nbadtris = 0;
 		int nedges = 0;
-		// Find all invalid triangles
-		for(int j = 0; j < ntris; j++){
+		// Find all invalid triangles and move them to the edges list
+		for(int j = ntris - 1; j >= 0; j--){
 			_cir c;
+			_tri t = tris[j];
 			if(getCircumCircle(vs[i], tris[j], &c)){
-				badtris[nbadtris] = &tris[j];
-				nbadtris++;
+				edges[nedges++] = t.p1;
+				edges[nedges++] = t.p2;
+				edges[nedges++] = t.p2;
+				edges[nedges++] = t.p3;
+				edges[nedges++] = t.p3;
+				edges[nedges++] = t.p1;
+
+				memmove(tris + j, tris + j + 1, ntris - j);
+				ntris--;
 			}
 		}
 
-		printf("%d ", nbadtris);
-
-		// Find the polygonal boundary
-		for(int j = 0; j < nbadtris; j++){
-			_tri t1 = *(badtris[j]);
-			for(int k = j + 1; k < nbadtris; k++){
-				_tri t2 = *(badtris[k]);
-				int edge = getSharedEdge(t2, t1.p1, t1.p2);
-				if(edge == 1){
-					edges[nedges++] = t2.p1;
-					edges[nedges++] = t2.p2;
-				}else if(edge == 2){
-					edges[nedges++] = t2.p2;
-					edges[nedges++] = t2.p3;
-				}else if(edge == 3){
-					edges[nedges++] = t2.p3;
-					edges[nedges++] = t2.p1;
-				}
-			}
-		}
-
-		// Remove triangles from tris which are also in the boundary polygon
-		for(int j = 0; j < nbadtris; j++){
-			_tri *t = badtris[j];
-			for(int k = ntris - 1; k >= 0; k++){
-				if(tris + k == t){
-					ntris--;
-					memmove(tris + k, tris + k + 1, ntris - k);
-				}
-			}
-		}
-
+		// Remove double edges
+		int ngoodedges = 0;
 		for(int j = 0; j < nedges; j += 2){
-			tris[ntris++] = (_tri){edges[j], edges[j + 1], vs[i]};
+			bool edgeisgood = true;
+			for(int k = 0; k < nedges; k += 2){
+				if(j == k){
+					continue;
+				}
+				if(sameEdge(edges[j], edges[j + 1], edges[k], edges[k + 1])){
+					edgeisgood = false;
+					break;
+				}
+			}
+			if(edgeisgood){
+				goodedges[ngoodedges++] = edges[j];
+				goodedges[ngoodedges++] = edges[j + 1];
+			}
+		}
+
+		for(int j = 0; j < ngoodedges; j += 2){
+			tris[ntris++] = (_tri){goodedges[j], goodedges[j + 1], vs[i]};
 		}
 
 		printf("%d\n", ntris);
 	}
 
-	free(badtris);
+	free(edges);
+	free(goodedges);
 	free(tris);
 	free(vs);
 
-	return 0;
+	return ntris;
 }
