@@ -75,7 +75,8 @@ static inline bool sortFunc(_vert v1, _vert v2)
 	return false;
 }
 
-static inline void swapInt(int *x, int *y){
+static inline void swapInt(int *x, int *y)
+{
 	*x ^= *y;
 	*y ^= *x;
 	*x ^= *y;

@@ -8,7 +8,7 @@ function rogue.init()
 	floordir = assetdir .. "rogue/tiles/dc-dngn/floor/"
 	loadpng(floordir .. "sandstone_floor0.png", "sandstone_floor0")
 
-	map.create(100, 100, 20)
+	map.create(getwidth(), getheight(), 10)
 end
 
 function rogue.update()
