@@ -39,6 +39,7 @@ function relaxrooms(room_list)
 		room_list[i].dy = math.floor(math.random(0, 1)) * 2 - 1
 	end
 
+	relaxed = true
 	for i = 1, #room_list do
 		for j = 1, #room_list do
 			if i ~= j then
@@ -50,6 +51,8 @@ function relaxrooms(room_list)
 			end
 		end
 	end
+
+	return relaxed
 end
 
 function map.create(width, height, rooms)
@@ -76,7 +79,7 @@ function map.create(width, height, rooms)
 		room_list[i] = room
 	end
 
-	relaxrooms(room_list)
+	while not relaxrooms(room_list) do end
 
 	for i = 1, rooms do
 		room = room_list[i]
